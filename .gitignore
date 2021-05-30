@@ -11,3 +11,7 @@
 !**/Build/CMakeLists.txt
 !**/Build/CMAKE_README.txt
 
+
+# 3. Tensorflow libs (too big)
+**/libs/bin/*
+

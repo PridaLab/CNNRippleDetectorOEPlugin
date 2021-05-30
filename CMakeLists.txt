@@ -3,7 +3,7 @@ if (NOT DEFINED GUI_BASE_DIR)
 	if (DEFINED ENV{GUI_BASE_DIR})
 		set(GUI_BASE_DIR $ENV{GUI_BASE_DIR})
 	else()
-		set(GUI_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../plugin-GUI)
+		set(GUI_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../plugin-GUI)
 	endif()
 endif()
 
@@ -59,12 +59,13 @@ endif()
 
 #Libraries and compiler options
 if(MSVC)
+	add_definitions(-DWIN32)
 	target_link_libraries(${PLUGIN_NAME} ${GUI_BIN_DIR}/open-ephys.lib)
 	target_compile_options(${PLUGIN_NAME} PRIVATE /sdl-)
 	
 	install(TARGETS ${PLUGIN_NAME} RUNTIME DESTINATION ${GUI_BIN_DIR}/plugins  CONFIGURATIONS ${CMAKE_CONFIGURATION_TYPES})
 
-	set(CMAKE_PREFIX_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../libs)
+	set(CMAKE_PREFIX_PATH ${CMAKE_CURRENT_SOURCE_DIR}/libs)
 elseif(LINUX)
 	target_link_libraries(${PLUGIN_NAME} GL X11 Xext Xinerama asound dl freetype pthread rt)
 	set_property(TARGET ${PLUGIN_NAME} APPEND_STRING PROPERTY LINK_FLAGS
@@ -99,3 +100,12 @@ endforeach()
 #
 #target_link_libraries(${PLUGIN_NAME} ${LIBNAME_LIBRARIES})
 #target_include_directories(${PLUGIN_NAME} PRIVATE ${LIBNAME_INCLUDE_DIRS})
+
+SET(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
+SET(CMAKE_FIND_LIBRARY_SUFFIXES ".lib" ".a" ".so")
+find_library(LIBNAME_LIBRARIES NAMES libtensorflow tensorflow PATHS libs/bin/x64)
+#find_path(LIBNAME_INCLUDE_DIRS NAMES c_api.h PATHS ./libs/include/tensorflow/c)
+set(MY_DIR  libs/include/)
+
+target_link_libraries(${PLUGIN_NAME} ${LIBNAME_LIBRARIES})
+target_include_directories(${PLUGIN_NAME} PRIVATE ${MY_DIR})
