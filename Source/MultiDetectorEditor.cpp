@@ -56,8 +56,8 @@ MultiDetectorEditor::MultiDetectorEditor(GenericProcessor* parentNode, bool useD
 
 
 
-    inputLayerText = createTextField("inputLayerText", rippleDetector->getInputLayer(), "inputLayer", { xPos + 400, yPos + 20, 200, fontSize });
-    addAndMakeVisible(inputLayerText);
+    /*inputLayerText = createTextField("inputLayerText", rippleDetector->getInputLayer(), "inputLayer", { xPos + 400, yPos + 20, 200, fontSize });
+    addAndMakeVisible(inputLayerText);*/
 
 
 
@@ -76,11 +76,11 @@ MultiDetectorEditor::MultiDetectorEditor(GenericProcessor* parentNode, bool useD
     thresholdText1 = createTextField("thresholdText1", String(rippleDetector->getThreshold1()), "Probability threshold", { xPos + 150, yPos + 20, 50, fontSize });
     addAndMakeVisible(thresholdText1);
 
-    thresholdLabel2 = createLabel("thresholdLabel2", "Thresh 2:", { xPos + 250, yPos, 140, fontSize });
+    /*thresholdLabel2 = createLabel("thresholdLabel2", "Thresh 2:", { xPos + 250, yPos, 140, fontSize });
     addAndMakeVisible(thresholdLabel2);
 
     thresholdText2 = createTextField("thresholdText2", String(rippleDetector->getThreshold2()), "Probability threshold", { xPos + 250, yPos + 20, 50, fontSize });
-    addAndMakeVisible(thresholdText2);
+    addAndMakeVisible(thresholdText2);*/
 
     outLabel1 = createLabel("outLabel1", "Out 1:", { xPos + 400, yPos, 140, fontSize });
     addAndMakeVisible(outLabel1);
@@ -94,7 +94,7 @@ MultiDetectorEditor::MultiDetectorEditor(GenericProcessor* parentNode, bool useD
     outSelector1->addListener(this);
     addAndMakeVisible(outSelector1);
 
-    outLabel2 = createLabel("outLabel2", "Out 2:", { xPos + 500, yPos, 140, fontSize });
+    /*outLabel2 = createLabel("outLabel2", "Out 2:", { xPos + 500, yPos, 140, fontSize });
     addAndMakeVisible(outLabel2);
 
     outSelector2 = new ComboBox("Out Second Channel");
@@ -104,7 +104,7 @@ MultiDetectorEditor::MultiDetectorEditor(GenericProcessor* parentNode, bool useD
     outSelector2->setTooltip("TTL channel 2");
     outSelector2->setBounds(xPos + 500, yPos + 20, 40, fontSize);
     outSelector2->addListener(this);
-    addAndMakeVisible(outSelector2);
+    addAndMakeVisible(outSelector2);*/
 }
 
 MultiDetectorEditor::~MultiDetectorEditor()
