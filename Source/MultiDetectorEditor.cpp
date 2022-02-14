@@ -11,7 +11,7 @@ MultiDetectorEditor::MultiDetectorEditor(GenericProcessor* parentNode, bool useD
     supportedFileExtensions = "*.pb"; 
 
     int fontSize = 15;
-    desiredWidth = 650;
+    desiredWidth = 400;
 
 
 	/* ------------- Top row (File selector) ------------- */
@@ -26,17 +26,19 @@ MultiDetectorEditor::MultiDetectorEditor(GenericProcessor* parentNode, bool useD
     fileNameLabel = createLabel("FileNameLabel", "No file selected.", {xPos + 20, yPos, 140, fontSize});
     addAndMakeVisible(fileNameLabel);
 
-    windowSizeLabel = createLabel("windowSizeLabel", "Window size (s):", {xPos + 400, yPos, 140, fontSize});
+    /*
+    windowSizeLabel = createLabel("windowSizeLabel", "Window size (s):", {xPos + 325, yPos, 140, fontSize});
     addAndMakeVisible(windowSizeLabel);
 
-    windowSizeText = createTextField("windowSizeText", String(rippleDetector->getPredictBufferSize()), "Prediction window size in seconds", {xPos + 525, yPos, 60, fontSize});
+    windowSizeText = createTextField("windowSizeText", String(rippleDetector->getPredictBufferSize()), "Prediction window size in seconds", {xPos + 325+125, yPos, 60, fontSize});
     addAndMakeVisible(windowSizeText);
 
-    strideLabel = createLabel("strideLabel", "Stride (s):", {xPos + 400, yPos + 20, 140, fontSize});
+    strideLabel = createLabel("strideLabel", "Stride (s):", {xPos + 325, yPos + 20, 140, fontSize});
     addAndMakeVisible(strideLabel);
 
-    strideText = createTextField("strideText", String(rippleDetector->getStride()), "Stride in seconds", {xPos + 525, yPos + 20, 60, fontSize});
+    strideText = createTextField("strideText", String(rippleDetector->getStride()), "Stride in seconds", {xPos + 325+125, yPos + 20, 60, fontSize});
     addAndMakeVisible(strideText);
+    */
 
 
     /* ------------- Middle row (Pulse duration) ------------- */
@@ -45,13 +47,13 @@ MultiDetectorEditor::MultiDetectorEditor(GenericProcessor* parentNode, bool useD
     pulseDurationLabel = createLabel("PulseDurationLabel", "Pulse duration (ms):", {xPos, yPos, 140, fontSize});
     addAndMakeVisible(pulseDurationLabel);
 
-    pulseDurationText = createTextField("PulseDurationText", String(rippleDetector->getPulseDuration()), "Duration of the TTL pulse", {xPos, yPos + 20, 50, fontSize});
+    pulseDurationText = createTextField("PulseDurationText", String(rippleDetector->getPulseDuration()), "Duration of the TTL pulse", {xPos + 10, yPos + 20, 50, fontSize});
     addAndMakeVisible(pulseDurationText);
 
     calibrationTimeLabel = createLabel("calibrationTimeLabel", "Calibration time (s):", { xPos + 150, yPos, 140, fontSize });
     addAndMakeVisible(calibrationTimeLabel);
 
-    calibrationTimeText = createTextField("calibrationTimeText", String(rippleDetector->getCalibrationTime()), "Duration of calibration time", { xPos + 150, yPos + 20, 50, fontSize });
+    calibrationTimeText = createTextField("calibrationTimeText", String(rippleDetector->getCalibrationTime()), "Duration of calibration time", { xPos + 150 + 10, yPos + 20, 50, fontSize });
     addAndMakeVisible(calibrationTimeText);
 
 
@@ -67,13 +69,13 @@ MultiDetectorEditor::MultiDetectorEditor(GenericProcessor* parentNode, bool useD
     timeoutLabel = createLabel("TimeoutLabel", "Timeout (ms):", {xPos, yPos, 140, fontSize});
     addAndMakeVisible(timeoutLabel);
 
-    timeoutText = createTextField("TimeoutText", String(rippleDetector->getTimeout()), "Minimum time between events", {xPos, yPos + 20, 50, fontSize});
+    timeoutText = createTextField("TimeoutText", String(rippleDetector->getTimeout()), "Minimum time between events", {xPos + 10, yPos + 20, 50, fontSize});
     addAndMakeVisible(timeoutText);
 
-    thresholdLabel1 = createLabel("thresholdLabel1", "Thresh 1:", { xPos + 150, yPos, 140, fontSize });
+    thresholdLabel1 = createLabel("thresholdLabel1", "Threshold:", { xPos + 150, yPos, 140, fontSize });
     addAndMakeVisible(thresholdLabel1);
 
-    thresholdText1 = createTextField("thresholdText1", String(rippleDetector->getThreshold1()), "Probability threshold", { xPos + 150, yPos + 20, 50, fontSize });
+    thresholdText1 = createTextField("thresholdText1", String(rippleDetector->getThreshold1()), "Probability threshold", { xPos + 150 + 10, yPos + 20, 50, fontSize });
     addAndMakeVisible(thresholdText1);
 
     /*thresholdLabel2 = createLabel("thresholdLabel2", "Thresh 2:", { xPos + 250, yPos, 140, fontSize });
@@ -82,7 +84,7 @@ MultiDetectorEditor::MultiDetectorEditor(GenericProcessor* parentNode, bool useD
     thresholdText2 = createTextField("thresholdText2", String(rippleDetector->getThreshold2()), "Probability threshold", { xPos + 250, yPos + 20, 50, fontSize });
     addAndMakeVisible(thresholdText2);*/
 
-    outLabel1 = createLabel("outLabel1", "Out 1:", { xPos + 400, yPos, 140, fontSize });
+    outLabel1 = createLabel("outLabel1", "Output:", { xPos + 300, yPos, 140, fontSize });
     addAndMakeVisible(outLabel1);
 
     outSelector1 = new ComboBox("Out First Channel");
@@ -90,7 +92,7 @@ MultiDetectorEditor::MultiDetectorEditor(GenericProcessor* parentNode, bool useD
         outSelector1->addItem(String(chan), chan);
     outSelector1->addItem(" ", 9);
     outSelector1->setTooltip("TTL channel 1");
-    outSelector1->setBounds(xPos + 400, yPos + 20, 40, fontSize);
+    outSelector1->setBounds(xPos + 300 + 10, yPos + 20, 40, fontSize);
     outSelector1->addListener(this);
     addAndMakeVisible(outSelector1);
 

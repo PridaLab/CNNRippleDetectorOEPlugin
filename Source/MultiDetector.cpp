@@ -4,7 +4,7 @@
 
 
 #define MAX_PREDICT_BUFFER_SIZE 16
-#define EFFECTIVE_STRIDE 10 // Lower stride, faster detection, more computation cost
+#define EFFECTIVE_STRIDE 8 // Lower stride, faster detection, more computation cost
 #define SIGMOID_THRESH 0.84729786 //0.40565
 #define LOGIT(p) log(p/(1.-p))
 #define SIGMOID(x) 1./(1.+exp(-x))
@@ -13,12 +13,12 @@
 using namespace MultiDetectorSpace;
 
 
-MultiDetector::MultiDetector() : GenericProcessor("Multi Detector")
+MultiDetector::MultiDetector() : GenericProcessor("CNN-ripple")
 {
 	setProcessorType(PROCESSOR_TYPE_FILTER);
 
-	predictBufferSize = 40;
-	effectiveStride = 10;
+	predictBufferSize = 16;
+	effectiveStride = 8;
 
 	downsampledSamplingRate = 1250.0;
 	downsampleFactor = 1.0;
