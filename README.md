@@ -14,7 +14,7 @@ For Linux:
 1. Copy the `CNNRippleDetectorOEPlugin.so` file to Open Ephys `plugins` folder.
 2. Download Tensorflow 2.3.0 libraries into `CNNRippleDetectorOEPlugin/libs/bin/x64`. You need to extract the content of the `lib` folder from this [TAR file](https://storage.googleapis.com/tensorflow/libtensorflow/libtensorflow-cpu-linux-x86_64-2.3.0.tar.gz).
 
-For Windows:
+For Windows (default path for plugins: `C:\ProgramData\Open Ephys`):
 1. Copy the `CNNRippleDetectorOEPlugin.dll` file to Open Ephys `plugins` folder.
 2. Download Tensorflow 2.3.0 libraries into Open Ephys `shared` folder. You need to extract the `.dll` file from the `lib` folder from this [ZIP file](https://storage.googleapis.com/tensorflow/libtensorflow/libtensorflow-cpu-windows-x86_64-2.3.0.zip).
 
