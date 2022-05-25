@@ -11,7 +11,7 @@ MultiDetectorEditor::MultiDetectorEditor(GenericProcessor* parentNode, bool useD
     supportedFileExtensions = "*.pb"; 
 
     int fontSize = 15;
-    desiredWidth = 400;
+    desiredWidth = 450;
 
 
 	/* ------------- Top row (File selector) ------------- */
@@ -56,6 +56,12 @@ MultiDetectorEditor::MultiDetectorEditor(GenericProcessor* parentNode, bool useD
     calibrationTimeText = createTextField("calibrationTimeText", String(rippleDetector->getCalibrationTime()), "Duration of calibration time", { xPos + 150 + 10, yPos + 20, 50, fontSize });
     addAndMakeVisible(calibrationTimeText);
 
+    thrDriftLabel = createLabel("thrDriftLabel", "Drift (SD):", { xPos + 315, yPos, 140, fontSize });
+    addAndMakeVisible(thrDriftLabel);
+
+    thrDriftText = createTextField("thrDriftText", String(rippleDetector->getThrDrift()), "Drift prevention threshold (standard deviations)", { xPos + 315 + 10, yPos + 20, 50, fontSize });
+    addAndMakeVisible(thrDriftText);
+
 
 
     /*inputLayerText = createTextField("inputLayerText", rippleDetector->getInputLayer(), "inputLayer", { xPos + 400, yPos + 20, 200, fontSize });
@@ -84,7 +90,7 @@ MultiDetectorEditor::MultiDetectorEditor(GenericProcessor* parentNode, bool useD
     thresholdText2 = createTextField("thresholdText2", String(rippleDetector->getThreshold2()), "Probability threshold", { xPos + 250, yPos + 20, 50, fontSize });
     addAndMakeVisible(thresholdText2);*/
 
-    outLabel1 = createLabel("outLabel1", "Output:", { xPos + 300, yPos, 140, fontSize });
+    outLabel1 = createLabel("outLabel1", "Output:", { xPos + 315, yPos, 140, fontSize });
     addAndMakeVisible(outLabel1);
 
     outSelector1 = new ComboBox("Out First Channel");
@@ -92,7 +98,7 @@ MultiDetectorEditor::MultiDetectorEditor(GenericProcessor* parentNode, bool useD
         outSelector1->addItem(String(chan), chan);
     outSelector1->addItem(" ", 9);
     outSelector1->setTooltip("TTL channel 1");
-    outSelector1->setBounds(xPos + 300 + 10, yPos + 20, 40, fontSize);
+    outSelector1->setBounds(xPos + 315 + 10, yPos + 20, 40, fontSize);
     outSelector1->addListener(this);
     addAndMakeVisible(outSelector1);
 
@@ -237,6 +243,12 @@ void MultiDetectorEditor::labelTextChanged(Label * labelThatHasChanged)
 
         if (updateFloatLabel(labelThatHasChanged, -50., 50., rippleDetector->getStride(), &newStride)) {
             rippleDetector->setStride(newStride);
+        }
+    } else if (labelThatHasChanged == thrDriftText) {
+        float newThrDrift;
+
+        if (updateFloatLabel(labelThatHasChanged, -50., 50., rippleDetector->getThrDrift(), &newThrDrift)) {
+            rippleDetector->setThrDrift(newThrDrift);
         }
     }
 }
