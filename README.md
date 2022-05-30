@@ -8,7 +8,7 @@ You can check our results in our manuscript (Navas-Olive, Amaducci et al.).
 
 ## Installing the plugin
 
-Download the latest release for your operating system from https://github.com/RoyVII/CNNRippleDetectorOEPlugin/releases.
+Download the latest release for your operating system from https://github.com/PridaLab/CNNRippleDetectorOEPlugin/releases.
 
 For Linux:
 1. Copy the `CNNRippleDetectorOEPlugin.so` file to Open Ephys `plugins` folder.
