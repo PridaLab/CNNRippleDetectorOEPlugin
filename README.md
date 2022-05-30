@@ -8,7 +8,7 @@ You can check our results in our manuscript (Navas-Olive, Amaducci et al.).
 
 ## Installing the plugin
 
-Download the latest release for your operating system from https://github.com/RoyVII/CNNRippleDetectorOEPlugin/releases.
+Download the latest release for your operating system from https://github.com/PridaLab/CNNRippleDetectorOEPlugin/releases.
 
 For Linux:
 1. Copy the `CNNRippleDetectorOEPlugin.so` file to Open Ephys `plugins` folder.
@@ -42,6 +42,7 @@ The plugin receives 8 channels as input. You can use the `ChannelMap` plugin to 
 - **Timeout:** recovery time after a pulse is sent (in milliseconds).
 - **Calibration:** calibration time before the experiment to setup the signals normalization (in seconds). One minute is usually enough.
 - **Threshold:** probability threshold for the detections. Between 0 and 1.
+- **Drift:** number of standard deviations above which the signal is considered to be dominated by extreme offset drift and the CNN will not predict.
 - **Output:** output channel for TTL pulses.
 
 

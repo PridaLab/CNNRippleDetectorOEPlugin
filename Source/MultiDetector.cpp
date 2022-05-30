@@ -60,11 +60,12 @@ MultiDetector::MultiDetector() : GenericProcessor("CNN-ripple")
 	channelsOldStds = std::vector<double>(NUM_CHANNELS);
 	channelsOldMeans = std::vector<double>(NUM_CHANNELS);
 
+	thrDrift = 0.;
+
 	for (int i = 0; i < NUM_CHANNELS; i++) {
 		calibrationBuffer[i] = std::vector<float>(calibrationTime * downsampledSamplingRate);
 		channelsMeans[i] = 0.;
 	}
-
 
 	createEventChannels();
 
@@ -115,6 +116,7 @@ bool MultiDetector::enable()
 
 
 	predictBuffer = std::vector<float>(predictBufferSize * NUM_CHANNELS);
+	predictBufferSum = std::vector<float>(predictBufferSize);
 
 	return true;
 }
@@ -181,8 +183,7 @@ void MultiDetector::process(AudioSampleBuffer& buffer)
 		// Save sample in round buffer
 		if (globalSample % downsampleFactor == 0) {
 			// Use globalSample so it is not relative to the buffer
-			globalSample == 0;
-
+			globalSample = 0;
 
 			if (isCalibration == true) {
 
@@ -194,10 +195,8 @@ void MultiDetector::process(AudioSampleBuffer& buffer)
 					pushMeanStd(channelsData[chan][sample], chan);
 				}
 
-
 				if (elapsedCalibration >= (calibrationTime * downsampledSamplingRate)) {
 					isCalibration = false;
-
 					for (int chan = 0; chan < NUM_CHANNELS; chan++) {
 						//channelsMeans[chan] /= calibrationBuffer[chan].size();
 						//channelsStds[chan] = calculateStd(calibrationBuffer[chan], channelsMeans[chan]);
@@ -207,8 +206,6 @@ void MultiDetector::process(AudioSampleBuffer& buffer)
 					}
 				}
 			}
-
-
 
 			for (int chan = 0; chan < NUM_CHANNELS; chan++) {
 				roundBuffer[roundBufferWriteIndex][chan] = channelsData[chan][sample];
@@ -230,7 +227,6 @@ void MultiDetector::process(AudioSampleBuffer& buffer)
 			//std::cout << "Sample: " << sample << " Downsample: " << sample/downsampleFactor << " Time: " << (unsigned int)(1000.f * float(tsBuffer + sample) / samplingRate) << std::endl;
 			//std::cout << "Write: " << roundBufferWriteIndex << " Read: " << roundBufferReadIndex << std::endl;
 
-
 			unsigned int temporalReadIndex = roundBufferReadIndex;
 			unsigned int oldRoundBufferReadIndex = roundBufferReadIndex;
 			// Next value to read will be the first upcoming window after stride, if no event is found
@@ -244,61 +240,87 @@ void MultiDetector::process(AudioSampleBuffer& buffer)
 				for (int chan = 0; chan < NUM_CHANNELS; chan++) {
 					// Save in the buffer after z-score norm. It is done here because the mean and std are already calculated
 					predictBuffer[(idx * NUM_CHANNELS) + chan] = (roundBuffer[temporalReadIndex][chan] - channelsMeans[chan]) / channelsStds[chan];
+					predictBufferSum[idx] += predictBuffer[(idx * NUM_CHANNELS) + chan];
 				}
-
+				predictBufferSum[idx] = abs(predictBufferSum[idx]/NUM_CHANNELS);
 				temporalReadIndex = (temporalReadIndex + 1) % MAX_ROUND_BUFFER_SIZE;
+			}
+			// If drift threshold is bigger than 0 then check the channels absolute mean
+			if (thrDrift > 0) {
+				skipPrediction = true;
+				float meanWindow = 0;
+				for (int idx = 0; idx < predictBufferSize; idx++) {
+					meanWindow += predictBufferSum[idx];
+					predictBufferSum[idx] = 0;
+				}
+				//for (int chan = 0; chan < NUM_CHANNELS; chan++) {
+				//	float meanChan += predictBufferSum[chan] ;
+				//	predictBufferSum[chan] = 0;
+
+					// If just one channel is under the threshold then perform prediction
+				//	if (meanChan < (channelsMeans[chan] + (thrDrift * channelsStds[chan]))) {
+				//		skipPrediction = false;
+				//		break;
+				//	}
+				//}
+				meanWindow = meanWindow/(predictBufferSize);
+				if (meanWindow < thrDrift) {
+					skipPrediction = false;
+				}
 			}
 
 
 			//Predict
-			/*FILE * f = fopen("salida4.txt", "a");
+			if (skipPrediction == false) {
+				/*FILE * f = fopen("salida4.txt", "a");
 
-			for (int idx = 0; idx < predictBufferSize; idx++) {
-				fprintf(f, "%f ", predictBuffer[(idx * NUM_CHANNELS) + 0]);
+				for (int idx = 0; idx < predictBufferSize; idx++) {
+					fprintf(f, "%f ", predictBuffer[(idx * NUM_CHANNELS) + 0]);
+				}
+				fprintf(f, "\n");
+				fclose(f);*/
+
+				TF_Tensor* input_tensor = nullptr, * output_tensor = nullptr;
+
+
+				std::vector<std::int64_t> dims = { 1, predictBufferSize, NUM_CHANNELS };
+				int num_dims = 3;
+				tf_functions::create_tensor(TF_FLOAT, dims, num_dims, predictBuffer, &input_tensor);
+
+				tf_functions::run_session(session, &input, &input_tensor, 1, &output, &output_tensor, 1);
+
+				// Check results
+				auto tensor_data = static_cast<float*>(TF_TensorData(output_tensor));
+				//std::cout << tensor_data[0] << std::endl;
+
+				forwardSamples = 0;
+
+				// Event 0
+				if ((thresholdSign1 * tensor_data[0]) >= (thresholdSign1 * threshold1) && channel1 >= 0) {
+					forwardSamples = 1;
+
+					//std::cout << tsBuffer << " " << numSamples << " " << sample << " " << tensor_data[0] << std::endl;
+					sendTTLEvent1(tsBuffer, numSamples, sample, channel1);
+				}
+
+				// Event 2
+				if ((thresholdSign2 * tensor_data[2]) >= (thresholdSign2 * threshold2) && channel2 >= 0) {
+					forwardSamples = 1;
+
+					//std::cout << tensor_data[2] << " " << tensor_data[7] << std::endl;
+					sendTTLEvent2(tsBuffer, numSamples, sample, channel2);
+				}
+
+				if (forwardSamples == 1) {
+					nextSampleEnable += timeoutSamples - 1;
+					//std::cout <<  "event" << " nextSample " << nextSampleEnable << std::endl;
+					// If an event has been found, next value to read will be the first upcoming window after timeout
+					roundBufferReadIndex = (oldRoundBufferReadIndex + std::max(timeoutDownsampled, effectiveStride)) % MAX_ROUND_BUFFER_SIZE;
+				}
+
+				tf_functions::delete_tensor(input_tensor);
+				tf_functions::delete_tensor(output_tensor);
 			}
-			fprintf(f, "\n");
-			fclose(f);*/
-
-			TF_Tensor* input_tensor = nullptr, * output_tensor = nullptr;
-
-
-			std::vector<std::int64_t> dims = { 1, predictBufferSize, NUM_CHANNELS };
-			int num_dims = 3;
-			tf_functions::create_tensor(TF_FLOAT, dims, num_dims, predictBuffer, &input_tensor);
-
-			tf_functions::run_session(session, &input, &input_tensor, 1, &output, &output_tensor, 1);
-
-			// Check results
-			auto tensor_data = static_cast<float*>(TF_TensorData(output_tensor));
-			//std::cout << tensor_data[0] << std::endl;
-
-			forwardSamples = 0;
-
-			// Event 0
-			if ((thresholdSign1 * tensor_data[0]) >= (thresholdSign1 * threshold1) && channel1 >= 0) {
-				forwardSamples = 1;
-
-				//std::cout << tsBuffer << " " << numSamples << " " << sample << " " << tensor_data[0] << std::endl;
-				sendTTLEvent1(tsBuffer, numSamples, sample, channel1);
-			}
-
-			// Event 2
-			if ((thresholdSign2 * tensor_data[2]) >= (thresholdSign2 * threshold2) && channel2 >= 0) {
-				forwardSamples = 1;
-
-				//std::cout << tensor_data[2] << " " << tensor_data[7] << std::endl;
-				sendTTLEvent2(tsBuffer, numSamples, sample, channel2);
-			}
-
-			if (forwardSamples == 1) {
-				nextSampleEnable += timeoutSamples - 1;
-				//std::cout <<  "event" << " nextSample " << nextSampleEnable << std::endl;
-				// If an event has been found, next value to read will be the first upcoming window after timeout
-				roundBufferReadIndex = (oldRoundBufferReadIndex + std::max(timeoutDownsampled, effectiveStride)) % MAX_ROUND_BUFFER_SIZE;
-			}
-
-			tf_functions::delete_tensor(input_tensor);
-			tf_functions::delete_tensor(output_tensor);
 		}
 	}
 
@@ -481,6 +503,10 @@ void MultiDetector::setChannel2(int channel) {
 	channel2 = channel;
 }
 
+void MultiDetector::setThrDrift(float newThrDrift) {
+	thrDrift = newThrDrift;
+}
+
 float MultiDetector::getPredictBufferSize() {
 	return predictBufferSize / downsampledSamplingRate;
 }
@@ -512,6 +538,10 @@ float MultiDetector::getThreshold2() {
 
 String MultiDetector::getInputLayer() {
 	return inputLayer;
+}
+
+float MultiDetector::getThrDrift() {
+	return thrDrift;
 }
 
 

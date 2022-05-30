@@ -55,6 +55,9 @@ private:
   ScopedPointer<ComboBox> outSelector1;
   ScopedPointer<ComboBox> outSelector2;
 
+  ScopedPointer<Label> thrDriftLabel;
+  ScopedPointer<Label> thrDriftText;
+
   Label * createLabel(const String& name, const String& text, juce::Rectangle<int> bounds);
   Label * createTextField(const String& name, const String& initialValue, const String& tooltip, juce::Rectangle<int> bounds);
 

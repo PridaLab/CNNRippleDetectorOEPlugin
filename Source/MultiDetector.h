@@ -91,6 +91,8 @@ namespace MultiDetectorSpace
 		float getThreshold1();
 		float getThreshold2();
 		String getInputLayer();
+		float getThrDrift();
+
 		void setTimeout(int newTimeout);
 		void setPulseDuration(int newPulseDuration);
 		void setCalibrationTime(float newCalibrationTime);
@@ -99,6 +101,7 @@ namespace MultiDetectorSpace
 		void setInputLayer(const String& newInputLayer);
 		void setChannel1(int channel);
 		void setChannel2(int channel);
+		void setThrDrift(float newThrDrift);
 
 	private:
 
@@ -130,8 +133,11 @@ namespace MultiDetectorSpace
 		unsigned int roundBufferNumElements;
 
 		std::vector<float> predictBuffer;
+		std::vector<float> predictBufferSum;
 		unsigned int predictBufferSize;
 		int effectiveStride;
+		float thrDrift;
+		bool skipPrediction;
 
 		float samplingRate;
 		float downsampledSamplingRate;
