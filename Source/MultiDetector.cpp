@@ -185,7 +185,6 @@ void MultiDetector::process(AudioSampleBuffer& buffer)
 			// Use globalSample so it is not relative to the buffer
 			globalSample = 0;
 
-
 			if (isCalibration == true) {
 
 				elapsedCalibration++;
@@ -227,7 +226,6 @@ void MultiDetector::process(AudioSampleBuffer& buffer)
 
 			//std::cout << "Sample: " << sample << " Downsample: " << sample/downsampleFactor << " Time: " << (unsigned int)(1000.f * float(tsBuffer + sample) / samplingRate) << std::endl;
 			//std::cout << "Write: " << roundBufferWriteIndex << " Read: " << roundBufferReadIndex << std::endl;
-
 
 			unsigned int temporalReadIndex = roundBufferReadIndex;
 			unsigned int oldRoundBufferReadIndex = roundBufferReadIndex;

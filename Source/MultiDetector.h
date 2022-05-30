@@ -133,7 +133,7 @@ namespace MultiDetectorSpace
 		unsigned int roundBufferNumElements;
 
 		std::vector<float> predictBuffer;
-		float predictBufferSum[NUM_CHANNELS];
+		std::vector<float> predictBufferSum;
 		unsigned int predictBufferSize;
 		int effectiveStride;
 		float thrDrift;
