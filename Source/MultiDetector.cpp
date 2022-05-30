@@ -65,9 +65,7 @@ MultiDetector::MultiDetector() : GenericProcessor("CNN-ripple")
 	for (int i = 0; i < NUM_CHANNELS; i++) {
 		calibrationBuffer[i] = std::vector<float>(calibrationTime * downsampledSamplingRate);
 		channelsMeans[i] = 0.;
-		predictBufferSum[i] = 0.;
 	}
-
 
 	createEventChannels();
 
@@ -118,6 +116,7 @@ bool MultiDetector::enable()
 
 
 	predictBuffer = std::vector<float>(predictBufferSize * NUM_CHANNELS);
+	predictBufferSum = std::vector<float>(predictBufferSize);
 
 	return true;
 }
@@ -184,7 +183,7 @@ void MultiDetector::process(AudioSampleBuffer& buffer)
 		// Save sample in round buffer
 		if (globalSample % downsampleFactor == 0) {
 			// Use globalSample so it is not relative to the buffer
-			globalSample == 0;
+			globalSample = 0;
 
 
 			if (isCalibration == true) {
@@ -197,10 +196,8 @@ void MultiDetector::process(AudioSampleBuffer& buffer)
 					pushMeanStd(channelsData[chan][sample], chan);
 				}
 
-
 				if (elapsedCalibration >= (calibrationTime * downsampledSamplingRate)) {
 					isCalibration = false;
-
 					for (int chan = 0; chan < NUM_CHANNELS; chan++) {
 						//channelsMeans[chan] /= calibrationBuffer[chan].size();
 						//channelsStds[chan] = calculateStd(calibrationBuffer[chan], channelsMeans[chan]);
@@ -210,8 +207,6 @@ void MultiDetector::process(AudioSampleBuffer& buffer)
 					}
 				}
 			}
-
-
 
 			for (int chan = 0; chan < NUM_CHANNELS; chan++) {
 				roundBuffer[roundBufferWriteIndex][chan] = channelsData[chan][sample];
@@ -247,25 +242,32 @@ void MultiDetector::process(AudioSampleBuffer& buffer)
 				for (int chan = 0; chan < NUM_CHANNELS; chan++) {
 					// Save in the buffer after z-score norm. It is done here because the mean and std are already calculated
 					predictBuffer[(idx * NUM_CHANNELS) + chan] = (roundBuffer[temporalReadIndex][chan] - channelsMeans[chan]) / channelsStds[chan];
-					predictBufferSum[chan] += predictBuffer[(idx * NUM_CHANNELS) + chan];
+					predictBufferSum[idx] += predictBuffer[(idx * NUM_CHANNELS) + chan];
 				}
-
+				predictBufferSum[idx] = abs(predictBufferSum[idx]/NUM_CHANNELS);
 				temporalReadIndex = (temporalReadIndex + 1) % MAX_ROUND_BUFFER_SIZE;
 			}
-
-			// If drift threshold is bigger than 0 then check the channels mean
+			// If drift threshold is bigger than 0 then check the channels absolute mean
 			if (thrDrift > 0) {
 				skipPrediction = true;
-
-				for (int chan = 0; chan < NUM_CHANNELS; chan++) {
-					float meanChan = predictBufferSum[chan] / predictBufferSize;
-					predictBufferSum[chan] = 0;
+				float meanWindow = 0;
+				for (int idx = 0; idx < predictBufferSize; idx++) {
+					meanWindow += predictBufferSum[idx];
+					predictBufferSum[idx] = 0;
+				}
+				//for (int chan = 0; chan < NUM_CHANNELS; chan++) {
+				//	float meanChan += predictBufferSum[chan] ;
+				//	predictBufferSum[chan] = 0;
 
 					// If just one channel is under the threshold then perform prediction
-					if (meanChan < (channelsMeans[chan] + (thrDrift * channelsStds[chan]))) {
-						skipPrediction = false;
-						break;
-					}
+				//	if (meanChan < (channelsMeans[chan] + (thrDrift * channelsStds[chan]))) {
+				//		skipPrediction = false;
+				//		break;
+				//	}
+				//}
+				meanWindow = meanWindow/(predictBufferSize);
+				if (meanWindow < thrDrift) {
+					skipPrediction = false;
 				}
 			}
 
