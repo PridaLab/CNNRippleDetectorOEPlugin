@@ -9,14 +9,29 @@
 #define LOGIT(p) log(p/(1.-p))
 #define SIGMOID(x) 1./(1.+exp(-x))
 
+MultiDetectorSettings::MultiDetectorSettings()
+{
+	eventChannel = nullptr;
+}
 
-using namespace MultiDetectorSpace;
+TTLEventPtr MultiDetectorSettings::createEvent(int64 outputLine, int64 sample_number, bool state)
+{
+	TTLEventPtr event = TTLEvent::createTTLEvent(
+		eventChannel,
+		sample_number,
+		outputLine, 
+		state
+	);
+
+	return event;
+}
 
 
 MultiDetector::MultiDetector() : GenericProcessor("CNN-ripple")
 {
-	setProcessorType(PROCESSOR_TYPE_FILTER);
+	//setProcessorType(PROCESSOR_TYPE_FILTER);
 
+	/*
 	predictBufferSize = 16;
 	effectiveStride = 8;
 
@@ -67,29 +82,59 @@ MultiDetector::MultiDetector() : GenericProcessor("CNN-ripple")
 		channelsMeans[i] = 0.;
 	}
 
-	createEventChannels();
-
 	printf("Sampling rate %f Downsample factor %d\n", samplingRate, downsampleFactor);
 	printf("nInputs %d nOutputs %d\n", getNumInputs(), getNumOutputs());
-
+	*/
 }
 
 MultiDetector::~MultiDetector()
 {
 	tf_functions::delete_graph(graph);
-	tf_functions::delete_session(session);
+
+	//TODO: Causes crash on GUI close if no model is loaded in 
+	//tf_functions::delete_session(session);
+}
+
+void MultiDetector::updateSettings()
+{
+
+	settings.update(getDataStreams());
+
+	for (auto stream : getDataStreams())
+	{
+		//Update stream settings here
+
+		//Add event channel
+		EventChannel::Settings s {
+			EventChannel::Type::TTL,
+			"Ripple detector output",
+			"Triggers when a ripple is detected on the input channel",
+			"dataderived.ripple",
+			getDataStream(stream->getStreamId())
+		};
+		eventChannels.add(new EventChannel(s));
+		eventChannels.getLast()->addProcessor(processorInfo.get());
+		settings[stream->getStreamId()]->eventChannel = eventChannels.getLast();
+	}
+
 }
 
 
 AudioProcessorEditor* MultiDetector::createEditor()
 {
-	editor = new MultiDetectorEditor(this, true);
+	 editor = std::make_unique<MultiDetectorEditor>(this);
 
-	return editor;
+	return editor.get();
+}
+
+void MultiDetector::parameterValueChanged(Parameter* param)
+{
+	//TODO
 }
 
 bool MultiDetector::enable()
 {
+	/*
 	const DataChannel* inChan = getDataChannel(0);
 	if (inChan == nullptr) {
 		printf("No input channels.\n");
@@ -117,6 +162,7 @@ bool MultiDetector::enable()
 
 	predictBuffer = std::vector<float>(predictBufferSize * NUM_CHANNELS);
 	predictBufferSum = std::vector<float>(predictBufferSize);
+	*/
 
 	return true;
 }
@@ -136,6 +182,8 @@ void MultiDetector::process(AudioSampleBuffer& buffer)
 	If the processor needs to handle events, this method must be called onyl once per process call
 	If spike processing is also needing, set the argument to true
 	*/
+
+	/*
 	//checkForEvents(false);
 	int numChannels = buffer.getNumChannels();
 	// TODO: check that numChannels >= 8
@@ -272,13 +320,13 @@ void MultiDetector::process(AudioSampleBuffer& buffer)
 
 			//Predict
 			if (skipPrediction == false) {
-				/*FILE * f = fopen("salida4.txt", "a");
+				// FILE * f = fopen("salida4.txt", "a");
 
-				for (int idx = 0; idx < predictBufferSize; idx++) {
-					fprintf(f, "%f ", predictBuffer[(idx * NUM_CHANNELS) + 0]);
-				}
-				fprintf(f, "\n");
-				fclose(f);*/
+				// for (int idx = 0; idx < predictBufferSize; idx++) {
+				// 	fprintf(f, "%f ", predictBuffer[(idx * NUM_CHANNELS) + 0]);
+				// }
+				// fprintf(f, "\n");
+				// fclose(f);
 
 				TF_Tensor* input_tensor = nullptr, * output_tensor = nullptr;
 
@@ -327,21 +375,28 @@ void MultiDetector::process(AudioSampleBuffer& buffer)
 
 	// Shift nextSampleEnable so it is relative to the next buffer
 	nextSampleEnable = juce::jmax(0, nextSampleEnable - numSamples);
+
+	*/
 }
 
 
 
 void MultiDetector::createEventChannels() {
+
+	/*
 	int num_of_ttl_channels = 8;
 	ttlEventChannel = new EventChannel(EventChannel::TTL, num_of_ttl_channels, sizeof(uint8), CoreServices::getGlobalSampleRate(), this);
 	ttlEventChannel->setIdentifier("TTL_deep.event");
 
 	// set array
 	eventChannelArray.add(ttlEventChannel);
+	*/
 }
 
 
 void MultiDetector::sendTTLEvent1(uint64 bufferTs, int bufferNumSamples, int sample_index, int eventChannel) {
+
+	/*
 	// Send on event
 	juce::uint8 ttlDataOn = 1 << eventChannel;
 	int sampleNumOn = std::max(sample_index, 0);
@@ -367,10 +422,13 @@ void MultiDetector::sendTTLEvent1(uint64 bufferTs, int bufferNumSamples, int sam
 		// if not, saves it for the next buffer
 		turnoffEvent1 = eventOff;
 	}
+	*/
 }
 
 void MultiDetector::sendTTLEvent2(uint64 bufferTs, int bufferNumSamples, int sample_index, int eventChannel) {
 	// Send on event
+
+	/*
 	juce::uint8 ttlDataOn = 1 << eventChannel;
 	int sampleNumOn = std::max(sample_index, 0);
 	juce::int64 eventTsOn = bufferTs + sampleNumOn;
@@ -395,14 +453,15 @@ void MultiDetector::sendTTLEvent2(uint64 bufferTs, int bufferNumSamples, int sam
 		// if not, saves it for the next buffer
 		turnoffEvent2 = eventOff;
 	}
+	*/
 }
 
 
 
 
 bool MultiDetector::setFile(String fullpath) {
-	modelPath = fullpath;
 
+	modelPath = fullpath;
 
 	if (tf_functions::load_session(modelPath.toStdString().c_str(), &graph, &session) == 0) {
 		modelLoaded = true;
@@ -435,6 +494,7 @@ bool MultiDetector::setFile(String fullpath) {
 	printf("%s\n", modelPath.toStdString().c_str());
 
 	modelLoaded = true;
+
 	return true;
 }
 

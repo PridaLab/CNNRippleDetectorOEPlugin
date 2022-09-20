@@ -15,15 +15,16 @@
 class MultiDetectorEditor : public GenericEditor, public Label::Listener, public ComboBox::Listener
 {
 public:
-    MultiDetectorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors);
-    ~MultiDetectorEditor();
+    MultiDetectorEditor(GenericProcessor* parentNode);
+    virtual ~MultiDetectorEditor() {}
 
     void labelTextChanged(Label* labelThatHasChanged) override;
     void comboBoxChanged(ComboBox* comboBoxThatHasChanged) override;
-    void buttonEvent(Button* button) override;
+    void buttonClicked(Button* button);
 
 private:
-	MultiDetectorSpace::MultiDetector * rippleDetector;
+
+	MultiDetector * rippleDetector;
 
 	File lastFilePath;
   String supportedFileExtensions;

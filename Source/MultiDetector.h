@@ -6,174 +6,148 @@
 #include "tf_functions.hpp"
 
 #define MAX_ROUND_BUFFER_SIZE 3000
-#define NUM_CHANNELS 8
+#define NUM_CHANNELS 2
 
-//namespace must be an unique name for your plugin
-namespace MultiDetectorSpace
+class MultiDetectorEditor;
+
+class MultiDetectorSettings
 {
-	class MultiDetector : public GenericProcessor
-	{
 	public:
-		/** The class constructor, used to initialize any members. */
-		MultiDetector();
 
-		/** The class destructor, used to deallocate memory */
-		~MultiDetector();
+		/** Constructor -- sets default values **/
+		MultiDetectorSettings();
 
-		/** Indicates if the processor has a custom editor. Defaults to false */
-		bool hasEditor() const { return true; }
+		/** Destructor **/
+		~MultiDetectorSettings() {}
 
-		/** If the processor has a custom editor, this method must be defined to instantiate it. */
-		AudioProcessorEditor* createEditor() override;
+		/** Creates an event associated with Ripple Detection */
+		TTLEventPtr createEvent(int64 outputLine, int64 sample_number, bool state);
 
-		/** Optional method that informs the GUI if the processor is ready to function. If false acquisition cannot start. Defaults to true */
-		//bool isReady();
+		EventChannel* eventChannel;
 
-		/** Defines the functionality of the processor.
+};
 
-		The process method is called every time a new data buffer is available.
+class MultiDetector : public GenericProcessor
+{
+public:
+	/** The class constructor, used to initialize any members. */
+	MultiDetector();
 
-		Processors can either use this method to add new data, manipulate existing
-		data, or send data to an external target (such as a display or other hardware).
+	/** The class destructor, used to deallocate memory */
+	~MultiDetector();
 
-		Continuous signals arrive in the "buffer" variable, event data (such as TTLs
-		and spikes) is contained in the "events" variable.
-		*/
-		void process(AudioSampleBuffer& buffer) override;
+	/** Creates the custom editor for this plugin */
+	AudioProcessorEditor* createEditor() override;
 
-		/** Handles events received by the processor
+	/** Processes data coming into the plugin */
+	void process(AudioSampleBuffer& buffer) override;
 
-		Called automatically for each received event whenever checkForEvents() is called from process()		
-		*/
-		//void handleEvent(const EventChannel* eventInfo, const MidiMessage& event, int samplePosition) override;
+	/** Called when a processor needs to update its settings */
+	void updateSettings() override;
 
-		/** Handles spikes received by the processor
+	/** Called when a parameter is updated */
+    void parameterValueChanged(Parameter* param) override;
 
-		Called automatically for each received event whenever checkForEvents(true) is called from process()
-		*/
-		//void handleSpike(const SpikeChannel* spikeInfo, const MidiMessage& event, int samplePosition) override;
+	bool enable();
+	bool disable();
 
-		/** The method that standard controls on the editor will call.
-		It is recommended that any variables used by the "process" function
-		are modified only through this method while data acquisition is active. */
-		//void setParameter(int parameterIndex, float newValue) override;
+	bool setFile(String fullpath);
 
-		/** Saving custom settings to XML. */
-		//void saveCustomParametersToXml(XmlElement* parentElement) override;
+	float getPredictBufferSize();
+	void setPredictBufferSize(float newPredictBufferSize);
+	float getStride();
+	void setStride(float newStride);
 
-		/** Load custom settings from XML*/
-		//void loadCustomParametersFromXml() override;
+	int getTimeout();
+	int getPulseDuration();
+	float getCalibrationTime();
+	float getThreshold1();
+	float getThreshold2();
+	String getInputLayer();
+	float getThrDrift();
 
-		/** Optional method called every time the signal chain is refreshed or changed in any way.
+	void setTimeout(int newTimeout);
+	void setPulseDuration(int newPulseDuration);
+	void setCalibrationTime(float newCalibrationTime);
+	void setThreshold1(float newThreshold);
+	void setThreshold2(float newThreshold);
+	void setInputLayer(const String& newInputLayer);
+	void setChannel1(int channel);
+	void setChannel2(int channel);
+	void setThrDrift(float newThrDrift);
 
-		Allows the processor to handle variations in the channel configuration or any other parameter
-		passed down the signal chain. The processor can also modify here the settings structure, which contains
-		information regarding the input and output channels as well as other signal related parameters. Said
-		structure shouldn't be manipulated outside of this method.
+private:
 
-		*/
-		//void updateSettings() override;
+	MultiDetectorEditor* ed;
 
+	StreamSettings<MultiDetectorSettings> settings;
 
-		bool enable() override;
-		bool disable() override;
+	float calculateMean(std::vector<float> data);
+	float calculateStd(std::vector<float> data, float mean);
+	void pushMeanStd(double x, int chan);
+	double getMean(int chan);
+	double getStd(int chan);
 
-		bool setFile(String fullpath);
+	void createEventChannels();
+	void sendTTLEvent1(uint64 bufferTs, int bufferNumSamples, int sample_index, int eventChannel);
+	void sendTTLEvent2(uint64 bufferTs, int bufferNumSamples, int sample_index, int eventChannel);
 
-		float getPredictBufferSize();
-		void setPredictBufferSize(float newPredictBufferSize);
-		float getStride();
-		void setStride(float newStride);
+	EventChannel *ttlEventChannel;
 
-		int getTimeout();
-		int getPulseDuration();
-		float getCalibrationTime();
-		float getThreshold1();
-		float getThreshold2();
-		String getInputLayer();
-		float getThrDrift();
+	String modelPath;
+	bool modelLoaded;
 
-		void setTimeout(int newTimeout);
-		void setPulseDuration(int newPulseDuration);
-		void setCalibrationTime(float newCalibrationTime);
-		void setThreshold1(float newThreshold);
-		void setThreshold2(float newThreshold);
-		void setInputLayer(const String& newInputLayer);
-		void setChannel1(int channel);
-		void setChannel2(int channel);
-		void setThrDrift(float newThrDrift);
+	bool isCalibration;
+	float calibrationTime;
+	int elapsedCalibration;
+	std::vector<double> channelsOldStds, channelsNewStds, channelsStds;
+	std::vector<double> channelsOldMeans, channelsNewMeans, channelsMeans;
+	std::vector<std::vector<float>> calibrationBuffer;
 
-	private:
+	float roundBuffer[MAX_ROUND_BUFFER_SIZE][NUM_CHANNELS];
+	unsigned int roundBufferWriteIndex;
+	unsigned int roundBufferReadIndex;
+	unsigned int roundBufferNumElements;
 
-		float calculateMean(std::vector<float> data);
-		float calculateStd(std::vector<float> data, float mean);
-		void pushMeanStd(double x, int chan);
-		double getMean(int chan);
-		double getStd(int chan);
+	std::vector<float> predictBuffer;
+	std::vector<float> predictBufferSum;
+	unsigned int predictBufferSize;
+	int effectiveStride;
+	float thrDrift;
+	bool skipPrediction;
 
-		void createEventChannels();
-		void sendTTLEvent1(uint64 bufferTs, int bufferNumSamples, int sample_index, int eventChannel);
-		void sendTTLEvent2(uint64 bufferTs, int bufferNumSamples, int sample_index, int eventChannel);
+	float samplingRate;
+	float downsampledSamplingRate;
+	unsigned int downsampleFactor;
+	unsigned int loopIndex;
+	unsigned int sinceLast;
 
-		EventChannel *ttlEventChannel;
+	int timeout;
+	int pulseDuration;
+	int timeoutSamples;
+	int pulseDurationSamples;
+	int timeoutDownsampled;
+	String inputLayer;
 
-		String modelPath;
-		bool modelLoaded;
+	int nextSampleEnable;
+	int globalSample;
+	unsigned int forwardSamples;
 
-		bool isCalibration;
-		float calibrationTime;
-		int elapsedCalibration;
-		std::vector<double> channelsOldStds, channelsNewStds, channelsStds;
-		std::vector<double> channelsOldMeans, channelsNewMeans, channelsMeans;
-		std::vector<std::vector<float>> calibrationBuffer;
+	float threshold1;
+	float threshold2;
+	float thresholdSign1;
+	float thresholdSign2;
 
-		float roundBuffer[MAX_ROUND_BUFFER_SIZE][NUM_CHANNELS];
-		unsigned int roundBufferWriteIndex;
-		unsigned int roundBufferReadIndex;
-		unsigned int roundBufferNumElements;
+	int channel1;
+	int channel2;
 
-		std::vector<float> predictBuffer;
-		std::vector<float> predictBufferSum;
-		unsigned int predictBufferSize;
-		int effectiveStride;
-		float thrDrift;
-		bool skipPrediction;
+	TTLEventPtr turnoffEvent1; // Variable to store a turn off event that should go in the next buffer
+	TTLEventPtr turnoffEvent2;
 
-		float samplingRate;
-		float downsampledSamplingRate;
-		unsigned int downsampleFactor;
-		unsigned int loopIndex;
-		unsigned int sinceLast;
+	TF_Graph * graph = nullptr;
+	TF_Session * session = nullptr;
+	TF_Output input, output;
 
-		int timeout;
-		int pulseDuration;
-		int timeoutSamples;
-		int pulseDurationSamples;
-		int timeoutDownsampled;
-		String inputLayer;
-
-		int nextSampleEnable;
-		int globalSample;
-		unsigned int forwardSamples;
-
-		float threshold1;
-		float threshold2;
-		float thresholdSign1;
-		float thresholdSign2;
-
-		int channel1;
-		int channel2;
-
-		TTLEventPtr turnoffEvent1; // Variable to store a turn off event that should go in the next buffer
-		TTLEventPtr turnoffEvent2;
-
-		TF_Graph * graph = nullptr;
-		TF_Session * session = nullptr;
-		TF_Output input, output;
-
-
-
-	};
-}
+};
 
 #endif

@@ -1,9 +1,9 @@
 #include "MultiDetectorEditor.h"
 #include "MultiDetector.h"
 
-MultiDetectorEditor::MultiDetectorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors = true)
-	: GenericEditor(parentNode, useDefaultParameterEditors)
-	, rippleDetector   (static_cast<MultiDetectorSpace::MultiDetector*> (parentNode))
+MultiDetectorEditor::MultiDetectorEditor(GenericProcessor* parentNode)
+	: GenericEditor(parentNode)
+	, rippleDetector(static_cast<MultiDetector*> (parentNode))
 {
 	lastFilePath = CoreServices::getDefaultUserSaveDirectory();
     // More extensions can be added an separated with semi-collons
@@ -19,7 +19,7 @@ MultiDetectorEditor::MultiDetectorEditor(GenericProcessor* parentNode, bool useD
     int yPos = 26;
 
 	fileButton = new UtilityButton("F:", Font ("Small Text", 13, Font::plain));
-    fileButton->addListener(this);
+    //fileButton->addListener(this);
     fileButton->setBounds(xPos, yPos, 20, fontSize);
     addAndMakeVisible(fileButton);
 
@@ -115,11 +115,6 @@ MultiDetectorEditor::MultiDetectorEditor(GenericProcessor* parentNode, bool useD
     addAndMakeVisible(outSelector2);*/
 }
 
-MultiDetectorEditor::~MultiDetectorEditor()
-{
-}
-
-
 Label * MultiDetectorEditor::createTextField (const String& name, const String& initialValue, const String& tooltip, juce::Rectangle<int> bounds)
 {
     Label* textField = new Label(name, initialValue);
@@ -151,7 +146,7 @@ The listener methods that reacts to the button click. The same method is called 
 on the editor, so the button variable, which cointains a pointer to the button that called the method
 has to be checked to know which function to perform.
 */
-void MultiDetectorEditor::buttonEvent(Button* button)
+void MultiDetectorEditor::buttonClicked(Button* button)
 {
 	if (button == fileButton) {
         FileChooser chooseFileReaderFile ("Please select the file you want to load...", lastFilePath, supportedFileExtensions);
@@ -176,7 +171,7 @@ void MultiDetectorEditor::setFile (String file)
     if (rippleDetector->setFile(filePath)) {
         fileNameLabel->setText(fileFullName, dontSendNotification);
 
-        setEnabledState(true);
+        //setEnabledState(true);
     }
     else {
         //clearEditor();
