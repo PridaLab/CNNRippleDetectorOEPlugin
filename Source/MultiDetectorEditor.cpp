@@ -83,6 +83,7 @@ MultiDetectorEditor::MultiDetectorEditor(GenericProcessor* parentNode)
     fileNameLabel = std::make_unique<Label>("File name", "No file loaded");
     fileNameLabel->setFont(Font("Silkscreen", "Regular", 10));
     fileNameLabel->setBounds(100, 25, 200, 20);
+    addAndMakeVisible(fileNameLabel.get());
 
     Parameter* param = getProcessor()->getParameter("pulse_duration");
     addCustomParameterEditor(new CustomTextBoxParameterEditor(param), 10, 45);

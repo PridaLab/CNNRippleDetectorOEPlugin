@@ -89,6 +89,8 @@ MultiDetector::MultiDetector() : GenericProcessor("CNN-ripple")
 		16		//max
 	);
 
+	inputLayer = "conv1d_input";
+
 	//setProcessorType(PROCESSOR_TYPE_FILTER);
 
 	/*
@@ -117,7 +119,6 @@ MultiDetector::MultiDetector() : GenericProcessor("CNN-ripple")
 	thresholdSign1 = 1;
 	threshold2 = 0.5;
 	thresholdSign2 = 1;
-	inputLayer = "conv1d_input";
 	turnoffEvent1 = nullptr;
 	turnoffEvent2 = nullptr;
 
