@@ -29,6 +29,66 @@ TTLEventPtr MultiDetectorSettings::createEvent(int64 outputLine, int64 sample_nu
 
 MultiDetector::MultiDetector() : GenericProcessor("CNN-ripple")
 {
+
+	addFloatParameter(
+		Parameter::STREAM_SCOPE,
+		"pulse_duration",
+		"Pulse duration (in ms)",
+		 48, 	//default 
+		 0, 	//min
+		 9999,  //max
+		 1  	//step
+	);
+
+	addFloatParameter(
+		Parameter::STREAM_SCOPE,
+		"timeout",
+		"Minimum time between events (in ms)",
+		 48, 	//default 
+		 0, 	//min
+		 9999,  //max
+		 1  	//step
+	);
+
+	addFloatParameter(
+		Parameter::STREAM_SCOPE,
+		"calibration_time",
+		"Duration of calibration time (in s)",
+		 60, 	//default 
+		 0, 	//min
+		 9999,  //max
+		 1  	//step
+	);
+
+	addFloatParameter(
+		Parameter::STREAM_SCOPE,
+		"threshold",
+		"Probability threshold",
+		 0, 	//default 
+		 0, 	//min
+		 1,     //max
+		 0.01  	//step
+	);
+
+	addFloatParameter(
+		Parameter::STREAM_SCOPE,
+		"drift",
+		"Drift prevention threshold (standard deviations)",
+		 0, 	//default 
+		 0, 	//min
+		 20,    //max
+		 0.1  	//step
+	);
+
+	addIntParameter(
+		Parameter::STREAM_SCOPE,
+		"output",
+		"The output TTL line",
+		1, 		//deafult
+		1, 		//min
+		16		//max
+	);
+
 	//setProcessorType(PROCESSOR_TYPE_FILTER);
 
 	/*
@@ -102,7 +162,13 @@ void MultiDetector::updateSettings()
 
 	for (auto stream : getDataStreams())
 	{
-		//Update stream settings here
+
+		parameterValueChanged(stream->getParameter("pulse_duration"));
+		parameterValueChanged(stream->getParameter("timeout"));
+		parameterValueChanged(stream->getParameter("calibration_time"));
+		parameterValueChanged(stream->getParameter("threshold"));
+		parameterValueChanged(stream->getParameter("drift"));
+		parameterValueChanged(stream->getParameter("output"));
 
 		//Add event channel
 		EventChannel::Settings s {
@@ -550,7 +616,6 @@ void MultiDetector::setThreshold2(float newThreshold) {
 	}
 }
 
-
 void MultiDetector::setInputLayer(const String& newInputLayer) {
 	inputLayer = newInputLayer;
 }
@@ -579,7 +644,6 @@ int MultiDetector::getTimeout() {
 	return timeout;
 }
 
-
 int MultiDetector::getPulseDuration() {
 	return pulseDuration;
 }
@@ -604,10 +668,6 @@ float MultiDetector::getThrDrift() {
 	return thrDrift;
 }
 
-
-
-
-
 float MultiDetector::calculateMean(std::vector<float> data) {
 	float sum = 0;
 	int length = data.size();
@@ -618,8 +678,6 @@ float MultiDetector::calculateMean(std::vector<float> data) {
 
 	return sum / length;
 }
-
-
 
 float MultiDetector::calculateStd(std::vector<float> data, float mean) {
 	float sum = 0;
@@ -632,7 +690,6 @@ float MultiDetector::calculateStd(std::vector<float> data, float mean) {
 
 	return sqrt(sum / length);
 }
-
 
 void  MultiDetector::pushMeanStd(double x, int chan) {
 	// See Knuth TAOCP vol 2, 3rd edition, page 232
@@ -650,12 +707,9 @@ void  MultiDetector::pushMeanStd(double x, int chan) {
 	}
 }
 
-
-
 double MultiDetector::getMean(int chan) {
 	return channelsNewMeans[chan];
 }
-
 
 double MultiDetector::getStd(int chan) {
 	double s = sqrt(channelsNewStds[chan] / (elapsedCalibration - 1));
