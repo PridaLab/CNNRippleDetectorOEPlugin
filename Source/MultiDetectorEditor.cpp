@@ -73,16 +73,18 @@ MultiDetectorEditor::MultiDetectorEditor(GenericProcessor* parentNode)
 
     rippleDetector = (MultiDetector*)parentNode;
 
+    addSelectedChannelsParameterEditor("CNN_Input", 10, 25);
+
     fileButton = std::make_unique<UtilityButton>("Load Model", titleFont);
     fileButton->addListener(this);
     fileButton->setRadius(3.0f);
     fileButton->setTooltip("Load a model file");
-    fileButton->setBounds(10, 25, 80, 20);
+    fileButton->setBounds(130, 25, 80, 20);
     addAndMakeVisible(fileButton.get());
 
     fileNameLabel = std::make_unique<Label>("File name", "No file loaded");
     fileNameLabel->setFont(Font("Silkscreen", "Regular", 10));
-    fileNameLabel->setBounds(100, 25, 200, 20);
+    fileNameLabel->setBounds(250, 25, 200, 20);
     addAndMakeVisible(fileNameLabel.get());
 
     Parameter* param = getProcessor()->getParameter("pulse_duration");
@@ -108,7 +110,7 @@ MultiDetectorEditor::MultiDetectorEditor(GenericProcessor* parentNode)
     supportedFileExtensions = "*.pb"; 
 
     int fontSize = 15;
-    desiredWidth = 330;
+    desiredWidth = 360;
 
 
 	// /* ------------- Top row (File selector) ------------- */

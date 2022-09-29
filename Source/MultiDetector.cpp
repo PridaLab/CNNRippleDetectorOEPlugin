@@ -30,6 +30,13 @@ TTLEventPtr MultiDetectorSettings::createEvent(int64 outputLine, int64 sample_nu
 MultiDetector::MultiDetector() : GenericProcessor("CNN-ripple")
 {
 
+	addSelectedChannelsParameter(
+		Parameter::STREAM_SCOPE,
+		"CNN_Input",
+		"The 8 continuous channels to use as input into the CNN",
+		8
+	);
+
 	addFloatParameter(
 		Parameter::STREAM_SCOPE,
 		"pulse_duration",
@@ -64,7 +71,7 @@ MultiDetector::MultiDetector() : GenericProcessor("CNN-ripple")
 		Parameter::STREAM_SCOPE,
 		"threshold",
 		"Probability threshold",
-		 0, 	//default 
+		 0.5, 	//default
 		 0, 	//min
 		 1,     //max
 		 0.01  	//step
@@ -91,15 +98,10 @@ MultiDetector::MultiDetector() : GenericProcessor("CNN-ripple")
 
 	inputLayer = "conv1d_input";
 
-	//setProcessorType(PROCESSOR_TYPE_FILTER);
-
-	/*
 	predictBufferSize = 16;
 	effectiveStride = 8;
 
 	downsampledSamplingRate = 1250.0;
-	downsampleFactor = 1.0;
-	loopIndex = 0;
 	sinceLast = effectiveStride;
 
 	roundBufferWriteIndex = 0;
@@ -109,6 +111,7 @@ MultiDetector::MultiDetector() : GenericProcessor("CNN-ripple")
 	modelPath = "";
 	modelLoaded = false;
 
+	/*
 	pulseDuration = 48.0;
 	timeout = 48.0;
 	nextSampleEnable = 0;
@@ -164,6 +167,23 @@ void MultiDetector::updateSettings()
 	for (auto stream : getDataStreams())
 	{
 
+		settings[stream->getStreamId()]->inputChannels = Array<int>({0,1,2,3,4,5,6,7});
+		settings[stream->getStreamId()]->pulseDuration = 0;
+		settings[stream->getStreamId()]->pulseDurationSamples = 0;
+		settings[stream->getStreamId()]->calibrationTime = 0;
+		settings[stream->getStreamId()]->elapsedCalibrationPoints = 0;
+		settings[stream->getStreamId()]->isCalibrated = false;
+		settings[stream->getStreamId()]->drift = 0;
+		settings[stream->getStreamId()]->timeout = 0;
+		settings[stream->getStreamId()]->timeoutSamples = 0;
+		settings[stream->getStreamId()]->timeoutDownsampled = 0;
+		settings[stream->getStreamId()]->threshold = 0;
+		settings[stream->getStreamId()]->thresholdSign = 0;
+		settings[stream->getStreamId()]->outputChannel = 0;
+
+		settings[stream->getStreamId()]->downsampleFactor = stream->getSampleRate() / downsampledSamplingRate;
+
+		parameterValueChanged(stream->getParameter("CNN_Input"));
 		parameterValueChanged(stream->getParameter("pulse_duration"));
 		parameterValueChanged(stream->getParameter("timeout"));
 		parameterValueChanged(stream->getParameter("calibration_time"));
@@ -196,7 +216,58 @@ AudioProcessorEditor* MultiDetector::createEditor()
 
 void MultiDetector::parameterValueChanged(Parameter* param)
 {
-	//TODO
+
+	String paramName = param->getName();
+	int streamId = param->getStreamId();
+
+	if (paramName.equalsIgnoreCase("CNN_Input"))
+	{
+		//TODO: Update list of input channels and make sure there are 8
+	}
+	else if (paramName.equalsIgnoreCase("pulse_duration"))
+	{
+		settings[streamId]->pulseDuration = param->getValue();
+		settings[streamId]->pulseDurationSamples = int(std::ceil(settings[streamId]->pulseDuration * getDataStream(streamId)->getSampleRate() / 1000.0f));
+	}
+	else if (paramName.equalsIgnoreCase("timeout"))
+	{
+		settings[streamId]->timeout = param->getValue();
+		settings[streamId]->timeoutSamples = int(std::floor(settings[streamId]->timeout * getDataStream(streamId)->getSampleRate() / 1000.0f));
+		settings[streamId]->timeoutDownsampled = int(std::floor(settings[streamId]->timeoutSamples / settings[streamId]->downsampleFactor));
+	}
+	else if (paramName.equalsIgnoreCase("calibration_time"))
+	{
+		settings[streamId]->calibrationTime = param->getValue();
+		
+		settings[streamId]->calibrationBuffer.clear();
+		settings[streamId]->channelMeans.clear();
+
+		for (int i = 0; i < NUM_CHANNELS; i++) {
+			settings[streamId]->calibrationBuffer.push_back(std::vector<float>(calibrationTime * downsampledSamplingRate));
+			settings[streamId]->channelMeans.push_back(0.);
+		}
+
+		settings[streamId]->isCalibrated = true;
+		settings[streamId]->elapsedCalibrationPoints = 0;
+	}
+	else if (paramName.equalsIgnoreCase("threshold"))
+	{
+		settings[streamId]->threshold = param->getValue();
+		if (settings[streamId]->threshold < 0) {
+			settings[streamId]->thresholdSign = -1;
+		} else {
+			settings[streamId]->thresholdSign = 1;
+		}
+	}
+	else if (paramName.equalsIgnoreCase("drift"))
+	{
+		settings[streamId]->drift = param->getValue();
+	}
+	else if (paramName.equalsIgnoreCase("output"))
+	{
+		settings[streamId]->outputChannel = (int)param->getValue() - 1;
+	}
+
 }
 
 bool MultiDetector::enable()

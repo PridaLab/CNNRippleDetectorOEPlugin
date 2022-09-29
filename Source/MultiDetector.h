@@ -6,7 +6,7 @@
 #include "tf_functions.hpp"
 
 #define MAX_ROUND_BUFFER_SIZE 3000
-#define NUM_CHANNELS 2
+#define NUM_CHANNELS 8
 
 class MultiDetectorEditor;
 
@@ -23,6 +23,32 @@ class MultiDetectorSettings
 		/** Creates an event associated with Ripple Detection */
 		TTLEventPtr createEvent(int64 outputLine, int64 sample_number, bool state);
 
+		Array<int> inputChannels;
+
+		int downsampleFactor;
+
+		int pulseDuration;
+		int pulseDurationSamples;
+
+		/* Calibration */
+		int calibrationTime;
+		std::vector<std::vector<float>> calibrationBuffer;
+		std::vector<double> channelMeans;
+		int elapsedCalibrationPoints;
+		bool isCalibrated;
+
+		int drift;
+
+		int timeout;
+		int timeoutSamples;
+		int timeoutDownsampled;
+
+		int threshold;
+		int thresholdSign;
+
+		int outputChannel;
+
+		/** TTL event channel */
 		EventChannel* eventChannel;
 
 };
