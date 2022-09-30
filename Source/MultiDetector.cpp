@@ -101,19 +101,12 @@ MultiDetector::MultiDetector() : GenericProcessor("CNN-ripple")
 	predictBufferSize = 16;
 	effectiveStride = 8;
 
-	downsampledSamplingRate = 1250.0;
-	sinceLast = effectiveStride;
-
-	roundBufferWriteIndex = 0;
-	roundBufferReadIndex = 0;
-	roundBufferNumElements = 0;
+	downsampledSamplingRate = 1250;
 
 	modelPath = "";
 	modelLoaded = false;
 
 	/*
-	pulseDuration = 48.0;
-	timeout = 48.0;
 	nextSampleEnable = 0;
 	globalSample = 0;
 	forwardSamples = 0;
@@ -167,7 +160,7 @@ void MultiDetector::updateSettings()
 	for (auto stream : getDataStreams())
 	{
 
-		settings[stream->getStreamId()]->inputChannels = Array<int>({0,1,2,3,4,5,6,7});
+		settings[stream->getStreamId()]->inputChannels.clear();
 		settings[stream->getStreamId()]->pulseDuration = 0;
 		settings[stream->getStreamId()]->pulseDurationSamples = 0;
 		settings[stream->getStreamId()]->calibrationTime = 0;
@@ -180,7 +173,19 @@ void MultiDetector::updateSettings()
 		settings[stream->getStreamId()]->threshold = 0;
 		settings[stream->getStreamId()]->thresholdSign = 0;
 		settings[stream->getStreamId()]->outputChannel = 0;
+        
+        settings[stream->getStreamId()]->globalSample = 0;
+        settings[stream->getStreamId()]->calibrationBuffer = std::vector<std::vector<float>>(NUM_CHANNELS);
 
+        settings[stream->getStreamId()]->channelsOldStds = std::vector<double>(NUM_CHANNELS);
+        settings[stream->getStreamId()]->channelsNewStds = std::vector<double>(NUM_CHANNELS);
+        settings[stream->getStreamId()]->channelsStds = std::vector<double>(NUM_CHANNELS);
+
+        settings[stream->getStreamId()]->channelsOldMeans = std::vector<double>(NUM_CHANNELS);
+        settings[stream->getStreamId()]->channelsNewMeans = std::vector<double>(NUM_CHANNELS);
+        settings[stream->getStreamId()]->channelsMeans = std::vector<double>(NUM_CHANNELS);
+
+        settings[stream->getStreamId()]->sinceLast = effectiveStride;
 		settings[stream->getStreamId()]->downsampleFactor = stream->getSampleRate() / downsampledSamplingRate;
 
 		parameterValueChanged(stream->getParameter("CNN_Input"));
@@ -222,7 +227,17 @@ void MultiDetector::parameterValueChanged(Parameter* param)
 
 	if (paramName.equalsIgnoreCase("CNN_Input"))
 	{
-		//TODO: Update list of input channels and make sure there are 8
+        Array<var>* array = param->getValue().getArray();
+        if (array->size() == NUM_CHANNELS)
+        {
+            settings[streamId]->inputChannels.clear();
+            for (int i = 0; i < NUM_CHANNELS; i++)
+            {
+                int localIndex = int(array->getReference(i));
+                int globalIndex = getDataStream(param->getStreamId())->getContinuousChannels()[localIndex]->getGlobalIndex();
+                settings[streamId]->inputChannels.add(globalIndex);
+            }
+        }
 	}
 	else if (paramName.equalsIgnoreCase("pulse_duration"))
 	{
@@ -240,11 +255,11 @@ void MultiDetector::parameterValueChanged(Parameter* param)
 		settings[streamId]->calibrationTime = param->getValue();
 		
 		settings[streamId]->calibrationBuffer.clear();
-		settings[streamId]->channelMeans.clear();
+		settings[streamId]->channelsMeans.clear();
 
 		for (int i = 0; i < NUM_CHANNELS; i++) {
-			settings[streamId]->calibrationBuffer.push_back(std::vector<float>(calibrationTime * downsampledSamplingRate));
-			settings[streamId]->channelMeans.push_back(0.);
+			settings[streamId]->calibrationBuffer.push_back(std::vector<float>());
+			settings[streamId]->channelsMeans.push_back(0.);
 		}
 
 		settings[streamId]->isCalibrated = true;
@@ -314,210 +329,163 @@ bool MultiDetector::disable()
 }
 
 
-void MultiDetector::process(AudioSampleBuffer& buffer)
+void MultiDetector::process(AudioBuffer<float>& buffer)
 {
-	/**
-	If the processor needs to handle events, this method must be called onyl once per process call
-	If spike processing is also needing, set the argument to true
-	*/
+	for (auto stream : getDataStreams())
+	{
+		if ((*stream)["enable_stream"])
+		{
 
-	/*
-	//checkForEvents(false);
-	int numChannels = buffer.getNumChannels();
-	// TODO: check that numChannels >= 8
+            const uint16 streamId = stream->getStreamId();
+            const int64 firstSampleNumberInBlock = getFirstSampleNumberForBlock(streamId);
+            const uint32 numSamplesInBlock = getNumSamplesInBlock(streamId);
+            
+            unsigned int ts = (unsigned int)(1000.0f * float(firstSampleNumberInBlock) / stream->getSampleRate());
+            
+            // Get input channel data pointers
+            const float* channelData[NUM_CHANNELS];
+            for (int i = 0; i < NUM_CHANNELS; i++) {
+                channelData[i] = buffer.getReadPointer(settings[streamId]->inputChannels[i]);
+            }
+            
+            //LOGD("Stream: ", streamId, " Sample number: ", firstSampleNumberInBlock, " ts: ", ts, " data: ", *channelData[0]);
+            
+            // Send any TTL events stored from previous buffers
+            int turnoffOffset1 = settings[streamId]->turnoffEvent1 ? juce::jmax(0, int(turnoffEvent1->getSampleNumber() - firstSampleNumberInBlock)) : -1;
+            if (turnoffOffset1 >= 0 && turnoffOffset1 < numSamplesInBlock) {
+                addEvent(settings[streamId]->turnoffEvent1, turnoffOffset1);
+                settings[streamId]->turnoffEvent1 = nullptr;
+            }
+            
+            for (int sample = 0; sample < numSamplesInBlock; sample++) {
+                
+                if (settings[streamId]->globalSample % settings[streamId]->downsampleFactor == 0) {
+                    
+                    settings[streamId]->globalSample = 0;
+                    
+                    if (settings[streamId]->isCalibrated) {
+                        
+                        settings[streamId]->elapsedCalibrationPoints++;
+                        
+                        for (int chan = 0; chan < NUM_CHANNELS; chan++)
+                            pushMeanStd(streamId, channelData[chan][sample], chan);
+                            
+                        if (settings[streamId]->elapsedCalibrationPoints >= (settings[streamId]->calibrationTime * downsampledSamplingRate)) {
+                            
+                            settings[streamId]->isCalibrated = false;
+                            
+                            for (int chan = 0; chan < NUM_CHANNELS; chan++) {
+                                settings[streamId]->channelsMeans[chan] = getMean(streamId, chan);
+                                settings[streamId]->channelsStds[chan] = getStd(streamId, chan);
+                            }
+                        }
+                        
+                    }
+                        
+                    for (int chan = 0; chan < NUM_CHANNELS; chan++)
+                        settings[streamId]->roundBuffer[settings[streamId]->roundBufferWriteIndex][chan] = channelData[chan][sample];
+                        
+                    settings[streamId]->roundBufferWriteIndex = (settings[streamId]->roundBufferWriteIndex + 1) % MAX_ROUND_BUFFER_SIZE;
+                    if (settings[streamId]->roundBufferNumElements < predictBufferSize)
+                        settings[streamId]->roundBufferNumElements++;
+                    settings[streamId]->sinceLast++;
+                    
+                }
+                
+                //TODO: This should go at the end of for loop
+                settings[streamId]->globalSample++;
+                
+            
+                if (settings[streamId]->roundBufferNumElements >= predictBufferSize && settings[streamId]->sinceLast > effectiveStride && sample >= settings[streamId]->nextSampleEnable) {
+                    
+                    settings[streamId]->sinceLast = 0;
+                    settings[streamId]->nextSampleEnable = sample + 1;
+                    
+                    unsigned int temporalReadIndex = settings[streamId]->roundBufferReadIndex;
+                    unsigned int oldRoundBufferReadIndex = temporalReadIndex;
+                    
+                    settings[streamId]->roundBufferReadIndex = (oldRoundBufferReadIndex + effectiveStride) % MAX_ROUND_BUFFER_SIZE;
+                    
+                    if (settings[streamId]->isCalibrated)
+                        continue;
+                    
+                    for (int idx = 0; idx < predictBufferSize; idx++) {
+                        
+                        for (int chan = 0; chan < NUM_CHANNELS; chan++) {
+                            
+                            settings[streamId]->predictBuffer[(idx*NUM_CHANNELS) + chan] = (settings[streamId]->roundBuffer[temporalReadIndex][chan] - settings[streamId]->channelsMeans[chan]) / settings[streamId]->channelsStds[chan];
+                            settings[streamId]->predictBufferSum[idx] += settings[streamId]->predictBuffer[(idx*NUM_CHANNELS) + chan];
+                            
+                        }
+                        
+                        settings[streamId]->predictBufferSum[idx] = abs(settings[streamId]->predictBufferSum[idx] / NUM_CHANNELS);
+                        temporalReadIndex = (temporalReadIndex + 1) % MAX_ROUND_BUFFER_SIZE;
+                    }
+                    
+                    if (settings[streamId]->drift > 0) {
+                        
+                        settings[streamId]->skipPrediction = true;
+                        
+                        float meanWindow = 0;
+                        
+                        for (int idx = 0; idx < predictBufferSize; idx++)
+                        {
+                            meanWindow += settings[streamId]->predictBufferSum[idx];
+                            settings[streamId]->predictBufferSum[idx] = 0;
+                        }
+                        
+                        meanWindow = meanWindow / predictBufferSize;
+                        
+                        if (meanWindow < settings[streamId]->drift) {
+                            settings[streamId]->skipPrediction = false;
+                        }
+                    }
+                    
+                    if (!settings[streamId]->skipPrediction)
+                    {
+                        
+                        TF_Tensor* input_tensor = nullptr, * output_tensor = nullptr;
 
-	// We use this instead of buffer.getNumSamples() because the second returns all the buffer positions,
-	// even the empty ones. The first just gives the number of used positions.
-	int numSamples = getNumSamples(0);
+                        std::vector<std::int64_t> dims = { 1, predictBufferSize, NUM_CHANNELS };
+                        int num_dims = 3;
+                        tf_functions::create_tensor(TF_FLOAT, dims, num_dims, predictBuffer, &input_tensor);
 
-	uint64 tsBuffer = getTimestamp(0); // pts
+                        tf_functions::run_session(session, &input, &input_tensor, 1, &output, &output_tensor, 1);
 
-	unsigned int ts = (unsigned int)(1000.f * float(tsBuffer) / samplingRate); // ms
+                        // Check results
+                        auto tensor_data = static_cast<float*>(TF_TensorData(output_tensor));
+                        //std::cout << tensor_data[0] << std::endl;
 
-	if (modelLoaded == false) {
-		printf("Model not loaded yet.\n");
-		return;
-	}
+                        settings[streamId]->forwardSamples = 0;
 
+                        // Event 0
+                        if ((settings[streamId]->thresholdSign * tensor_data[0]) >= (settings[streamId]->thresholdSign * settings[streamId]->threshold) && settings[streamId]->outputChannel >= 0) {
+                            settings[streamId]->forwardSamples = 1;
 
-	//std::cout << "samples: " << numSamples << " time: " << ts << " fs: " << samplingRate << " factor: " << downsampleFactor << " nextSampleEnable: " << nextSampleEnable << std::endl;
+                            //std::cout << tsBuffer << " " << numSamples << " " << sample << " " << tensor_data[0] << std::endl;
+                            sendTTLEvent(firstSampleNumberInBlock, numSamplesInBlock, sample);
+                        }
 
+                        if (settings[streamId]->forwardSamples == 1) {
+                            settings[streamId]->nextSampleEnable += settings[streamId]->timeoutSamples - 1;
+                            //std::cout <<  "event" << " nextSample " << nextSampleEnable << std::endl;
+                            // If an event has been found, next value to read will be the first upcoming window after timeout
+                            settings[streamId]->roundBufferReadIndex = (oldRoundBufferReadIndex + std::max(settings[streamId]->timeoutDownsampled, effectiveStride)) % MAX_ROUND_BUFFER_SIZE;
+                        }
 
-	// Gets pointers to buffers
-	const float* channelsData[NUM_CHANNELS];
-	for (int chan = 0; chan < NUM_CHANNELS; chan++) {
-		channelsData[chan] = buffer.getReadPointer(chan);
-	}
-
-
-	// Sends TTL events that were stored from previous buffers if its time
-	int turnoffOffset1 = turnoffEvent1 ? juce::jmax(0, int(turnoffEvent1->getTimestamp() - tsBuffer)) : -1;
-	if (turnoffOffset1 >= 0 && turnoffOffset1 < numSamples) {
-		addEvent(ttlEventChannel, turnoffEvent1, turnoffOffset1);
-		turnoffEvent1 = nullptr;
-	}
-
-	int turnoffOffset2 = turnoffEvent2 ? juce::jmax(0, int(turnoffEvent2->getTimestamp() - tsBuffer)) : -1;
-	if (turnoffOffset2 >= 0 && turnoffOffset2 < numSamples) {
-		addEvent(ttlEventChannel, turnoffEvent2, turnoffOffset2);
-		turnoffEvent2 = nullptr;
-	}
-
-
-	for (int sample = 0; sample < numSamples; sample++, globalSample++) {
-
-		// Save sample in round buffer
-		if (globalSample % downsampleFactor == 0) {
-			// Use globalSample so it is not relative to the buffer
-			globalSample = 0;
-
-			if (isCalibration == true) {
-
-				elapsedCalibration++;
-
-				for (int chan = 0; chan < NUM_CHANNELS; chan++) {
-					//calibrationBuffer[chan][elapsedCalibration-1] = channelsData[chan][sample];
-					//channelsMeans[chan] += channelsData[chan][sample];
-					pushMeanStd(channelsData[chan][sample], chan);
-				}
-
-				if (elapsedCalibration >= (calibrationTime * downsampledSamplingRate)) {
-					isCalibration = false;
-					for (int chan = 0; chan < NUM_CHANNELS; chan++) {
-						//channelsMeans[chan] /= calibrationBuffer[chan].size();
-						//channelsStds[chan] = calculateStd(calibrationBuffer[chan], channelsMeans[chan]);
-						//if (channelsStds[chan] == 0) channelsStds[chan] = 1;
-						channelsMeans[chan] = getMean(chan);
-						channelsStds[chan] = getStd(chan);
-					}
-				}
-			}
-
-			for (int chan = 0; chan < NUM_CHANNELS; chan++) {
-				roundBuffer[roundBufferWriteIndex][chan] = channelsData[chan][sample];
-			}
-
-			roundBufferWriteIndex = (roundBufferWriteIndex + 1) % MAX_ROUND_BUFFER_SIZE;
-			if (roundBufferNumElements < predictBufferSize) roundBufferNumElements++;
-			sinceLast++;
+                        tf_functions::delete_tensor(input_tensor);
+                        tf_functions::delete_tensor(output_tensor);
+                    }
+                    
+                }
+                
+            }
+                
 		}
 
-		//std::cout << "sinceLast: " << sinceLast << " nextSampleEnable: " << nextSampleEnable << std::endl;
-
-		// Check if it is time to predict (enough data AND effective stride passed AND timeout passed)
-		if ((roundBufferNumElements >= predictBufferSize) && (sinceLast >= effectiveStride) && (sample >= nextSampleEnable)) {
-			//std::cout << "sinceLast: " << sinceLast << " elapsedCalibration: " << elapsedCalibration << std::endl;
-			sinceLast = 0;
-			nextSampleEnable = sample + 1;
-
-			//std::cout << "Sample: " << sample << " Downsample: " << sample/downsampleFactor << " Time: " << (unsigned int)(1000.f * float(tsBuffer + sample) / samplingRate) << std::endl;
-			//std::cout << "Write: " << roundBufferWriteIndex << " Read: " << roundBufferReadIndex << std::endl;
-
-			unsigned int temporalReadIndex = roundBufferReadIndex;
-			unsigned int oldRoundBufferReadIndex = roundBufferReadIndex;
-			// Next value to read will be the first upcoming window after stride, if no event is found
-			roundBufferReadIndex = (oldRoundBufferReadIndex + effectiveStride) % MAX_ROUND_BUFFER_SIZE;
-
-			// If still calibrating do nothing yet
-			if (isCalibration == true) continue;
-
-			// Create predict window
-			for (int idx = 0; idx < predictBufferSize; idx++) {
-				for (int chan = 0; chan < NUM_CHANNELS; chan++) {
-					// Save in the buffer after z-score norm. It is done here because the mean and std are already calculated
-					predictBuffer[(idx * NUM_CHANNELS) + chan] = (roundBuffer[temporalReadIndex][chan] - channelsMeans[chan]) / channelsStds[chan];
-					predictBufferSum[idx] += predictBuffer[(idx * NUM_CHANNELS) + chan];
-				}
-				predictBufferSum[idx] = abs(predictBufferSum[idx]/NUM_CHANNELS);
-				temporalReadIndex = (temporalReadIndex + 1) % MAX_ROUND_BUFFER_SIZE;
-			}
-			// If drift threshold is bigger than 0 then check the channels absolute mean
-			if (thrDrift > 0) {
-				skipPrediction = true;
-				float meanWindow = 0;
-				for (int idx = 0; idx < predictBufferSize; idx++) {
-					meanWindow += predictBufferSum[idx];
-					predictBufferSum[idx] = 0;
-				}
-				//for (int chan = 0; chan < NUM_CHANNELS; chan++) {
-				//	float meanChan += predictBufferSum[chan] ;
-				//	predictBufferSum[chan] = 0;
-
-					// If just one channel is under the threshold then perform prediction
-				//	if (meanChan < (channelsMeans[chan] + (thrDrift * channelsStds[chan]))) {
-				//		skipPrediction = false;
-				//		break;
-				//	}
-				//}
-				meanWindow = meanWindow/(predictBufferSize);
-				if (meanWindow < thrDrift) {
-					skipPrediction = false;
-				}
-			}
-
-
-			//Predict
-			if (skipPrediction == false) {
-				// FILE * f = fopen("salida4.txt", "a");
-
-				// for (int idx = 0; idx < predictBufferSize; idx++) {
-				// 	fprintf(f, "%f ", predictBuffer[(idx * NUM_CHANNELS) + 0]);
-				// }
-				// fprintf(f, "\n");
-				// fclose(f);
-
-				TF_Tensor* input_tensor = nullptr, * output_tensor = nullptr;
-
-
-				std::vector<std::int64_t> dims = { 1, predictBufferSize, NUM_CHANNELS };
-				int num_dims = 3;
-				tf_functions::create_tensor(TF_FLOAT, dims, num_dims, predictBuffer, &input_tensor);
-
-				tf_functions::run_session(session, &input, &input_tensor, 1, &output, &output_tensor, 1);
-
-				// Check results
-				auto tensor_data = static_cast<float*>(TF_TensorData(output_tensor));
-				//std::cout << tensor_data[0] << std::endl;
-
-				forwardSamples = 0;
-
-				// Event 0
-				if ((thresholdSign1 * tensor_data[0]) >= (thresholdSign1 * threshold1) && channel1 >= 0) {
-					forwardSamples = 1;
-
-					//std::cout << tsBuffer << " " << numSamples << " " << sample << " " << tensor_data[0] << std::endl;
-					sendTTLEvent1(tsBuffer, numSamples, sample, channel1);
-				}
-
-				// Event 2
-				if ((thresholdSign2 * tensor_data[2]) >= (thresholdSign2 * threshold2) && channel2 >= 0) {
-					forwardSamples = 1;
-
-					//std::cout << tensor_data[2] << " " << tensor_data[7] << std::endl;
-					sendTTLEvent2(tsBuffer, numSamples, sample, channel2);
-				}
-
-				if (forwardSamples == 1) {
-					nextSampleEnable += timeoutSamples - 1;
-					//std::cout <<  "event" << " nextSample " << nextSampleEnable << std::endl;
-					// If an event has been found, next value to read will be the first upcoming window after timeout
-					roundBufferReadIndex = (oldRoundBufferReadIndex + std::max(timeoutDownsampled, effectiveStride)) % MAX_ROUND_BUFFER_SIZE;
-				}
-
-				tf_functions::delete_tensor(input_tensor);
-				tf_functions::delete_tensor(output_tensor);
-			}
-		}
 	}
 
-
-	// Shift nextSampleEnable so it is relative to the next buffer
-	nextSampleEnable = juce::jmax(0, nextSampleEnable - numSamples);
-
-	*/
 }
-
-
 
 void MultiDetector::createEventChannels() {
 
@@ -532,10 +500,12 @@ void MultiDetector::createEventChannels() {
 }
 
 
-void MultiDetector::sendTTLEvent1(uint64 bufferTs, int bufferNumSamples, int sample_index, int eventChannel) {
+void MultiDetector::sendTTLEvent(uint64 sampleNumber, int bufferNumSamples, int sample_index) {
 
-	/*
 	// Send on event
+    
+    
+    /*
 	juce::uint8 ttlDataOn = 1 << eventChannel;
 	int sampleNumOn = std::max(sample_index, 0);
 	juce::int64 eventTsOn = bufferTs + sampleNumOn;
@@ -562,39 +532,6 @@ void MultiDetector::sendTTLEvent1(uint64 bufferTs, int bufferNumSamples, int sam
 	}
 	*/
 }
-
-void MultiDetector::sendTTLEvent2(uint64 bufferTs, int bufferNumSamples, int sample_index, int eventChannel) {
-	// Send on event
-
-	/*
-	juce::uint8 ttlDataOn = 1 << eventChannel;
-	int sampleNumOn = std::max(sample_index, 0);
-	juce::int64 eventTsOn = bufferTs + sampleNumOn;
-	TTLEventPtr eventOn = TTLEvent::createTTLEvent(ttlEventChannel, eventTsOn, &ttlDataOn, sizeof(juce::uint8), eventChannel);
-	addEvent(ttlEventChannel, eventOn, sampleNumOn);
-
-	// Send off event
-	juce::uint8 ttlDataOff = 0;
-	int sampleNumOff = sampleNumOn + pulseDurationSamples;
-	juce::int64 eventTsOff = bufferTs + sampleNumOff;
-	TTLEventPtr eventOff = TTLEvent::createTTLEvent(ttlEventChannel, eventTsOff, &ttlDataOff, sizeof(juce::uint8), eventChannel);
-
-
-	//std::cout << eventTsOn << "  " << eventTsOff << std::endl;
-
-	// Check if turn off event occurs during the actual buffer
-	if (sampleNumOff <= bufferNumSamples) {
-		// If it does, simply add the turn off event
-		addEvent(ttlEventChannel, eventOff, sampleNumOff);
-	}
-	else {
-		// if not, saves it for the next buffer
-		turnoffEvent2 = eventOff;
-	}
-	*/
-}
-
-
 
 
 bool MultiDetector::setFile(String fullpath) {
@@ -763,27 +700,29 @@ float MultiDetector::calculateStd(std::vector<float> data, float mean) {
 	return sqrt(sum / length);
 }
 
-void  MultiDetector::pushMeanStd(double x, int chan) {
+void  MultiDetector::pushMeanStd(uint64 streamId, double x, int chan) {
+    
 	// See Knuth TAOCP vol 2, 3rd edition, page 232
-	if (elapsedCalibration == 1) {
-		channelsOldMeans[chan] = channelsNewMeans[chan] = x;
-		channelsOldStds[chan] = 0.0;
+	if (settings[streamId]->elapsedCalibrationPoints == 1) {
+        settings[streamId]->channelsOldMeans[chan] = settings[streamId]->channelsNewMeans[chan] = x;
+        settings[streamId]->channelsOldStds[chan] = 0.0;
 	}
-	else {
-		channelsNewMeans[chan] = channelsOldMeans[chan] + (x - channelsOldMeans[chan]) / elapsedCalibration;
-		channelsNewStds[chan] = channelsOldStds[chan] + (x - channelsOldMeans[chan]) * (x - channelsNewMeans[chan]);
+	else
+    {
+        settings[streamId]->channelsNewMeans[chan] = settings[streamId]->channelsOldMeans[chan] + (x - settings[streamId]->channelsOldMeans[chan]) / settings[streamId]->elapsedCalibrationPoints;
+        settings[streamId]->channelsNewStds[chan] = settings[streamId]->channelsOldStds[chan] + (x - settings[streamId]->channelsOldMeans[chan]) * (x - settings[streamId]->channelsNewMeans[chan]);
 
 		// set up for next iteration
-		channelsOldMeans[chan] = channelsNewMeans[chan];
-		channelsOldStds[chan] = channelsNewStds[chan];
+        settings[streamId]->channelsOldMeans[chan] = settings[streamId]->channelsNewMeans[chan];
+        settings[streamId]->channelsOldStds[chan] = settings[streamId]->channelsNewStds[chan];
 	}
 }
 
-double MultiDetector::getMean(int chan) {
-	return channelsNewMeans[chan];
+double MultiDetector::getMean(uint64 streamId, int chan) {
+	return settings[streamId]->channelsNewMeans[chan];
 }
 
-double MultiDetector::getStd(int chan) {
-	double s = sqrt(channelsNewStds[chan] / (elapsedCalibration - 1));
+double MultiDetector::getStd(uint64 streamId, int chan) {
+	double s = sqrt(settings[streamId]->channelsNewStds[chan] / (settings[streamId]->elapsedCalibrationPoints - 1));
 	return (s > 0.0) ? s : 1.0;
 }

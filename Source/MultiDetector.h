@@ -33,7 +33,6 @@ class MultiDetectorSettings
 		/* Calibration */
 		int calibrationTime;
 		std::vector<std::vector<float>> calibrationBuffer;
-		std::vector<double> channelMeans;
 		int elapsedCalibrationPoints;
 		bool isCalibrated;
 
@@ -45,8 +44,30 @@ class MultiDetectorSettings
 
 		int threshold;
 		int thresholdSign;
+    
+        /* Sample buffering */
+        int globalSample;
+        int forwardSamples;
+        int nextSampleEnable;
+    
+        std::vector<double> channelsOldStds, channelsNewStds, channelsStds;
+        std::vector<double> channelsOldMeans, channelsNewMeans, channelsMeans;
+
+        float roundBuffer[MAX_ROUND_BUFFER_SIZE][NUM_CHANNELS];
+		int roundBufferWriteIndex;
+		int roundBufferReadIndex;
+		int roundBufferNumElements;
+        unsigned int sinceLast;
+
+		std::vector<float> predictBuffer;
+		std::vector<float> predictBufferSum;
+    
+        bool skipPrediction;
 
 		int outputChannel;
+    
+        TTLEventPtr turnoffEvent1;
+        TTLEventPtr turnoffEvent2;
 
 		/** TTL event channel */
 		EventChannel* eventChannel;
@@ -66,7 +87,7 @@ public:
 	AudioProcessorEditor* createEditor() override;
 
 	/** Processes data coming into the plugin */
-	void process(AudioSampleBuffer& buffer) override;
+	void process(AudioBuffer<float>& buffer) override;
 
 	/** Called when a processor needs to update its settings */
 	void updateSettings() override;
@@ -110,13 +131,14 @@ private:
 
 	float calculateMean(std::vector<float> data);
 	float calculateStd(std::vector<float> data, float mean);
-	void pushMeanStd(double x, int chan);
-	double getMean(int chan);
-	double getStd(int chan);
+	void pushMeanStd(uint64 streamId, double x, int chan);
+	double getMean(uint64 streamId, int chan);
+	double getStd(uint64 streamId, int chan);
+    
+    void predict(uint64 streamId);
 
 	void createEventChannels();
-	void sendTTLEvent1(uint64 bufferTs, int bufferNumSamples, int sample_index, int eventChannel);
-	void sendTTLEvent2(uint64 bufferTs, int bufferNumSamples, int sample_index, int eventChannel);
+	void sendTTLEvent(uint64 bufferTs, int bufferNumSamples, int sample_index);
 
 	EventChannel *ttlEventChannel;
 
@@ -143,7 +165,7 @@ private:
 	bool skipPrediction;
 
 	float samplingRate;
-	float downsampledSamplingRate;
+	int downsampledSamplingRate;
 	unsigned int downsampleFactor;
 	unsigned int loopIndex;
 	unsigned int sinceLast;
