@@ -160,7 +160,21 @@ void MultiDetector::updateSettings()
 	for (auto stream : getDataStreams())
 	{
 
-		settings[stream->getStreamId()]->inputChannels.clear();
+        /* Check if NUM_CHANNELS input channels have already been set.
+           If not, default to the first NUM_CHANNELS available channels */
+        if (stream->getParameter("CNN_Input")->getValue().size() != NUM_CHANNELS) {
+
+            settings[stream->getStreamId()]->inputChannels.clear();
+            var selectedChannels;
+            for (int i = 0; i < NUM_CHANNELS; i++)
+            {
+                selectedChannels.append(i);
+                settings[stream->getStreamId()]->inputChannels.add(i);
+            }
+            stream->getParameter("CNN_Input")->setNextValue(selectedChannels);
+
+        }
+
 		settings[stream->getStreamId()]->pulseDuration = 0;
 		settings[stream->getStreamId()]->pulseDurationSamples = 0;
 		settings[stream->getStreamId()]->calibrationTime = 0;
