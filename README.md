@@ -4,7 +4,7 @@
 
 This plugin allows the use of CNN-ripple as a real-time detection tool as part of the Open Ephys platform.
 
-You can check our results in our manuscript (Navas-Olive, Amaducci et al.).
+You can check our results in our manuscript ([Navas-Olive, Amaducci et al. eLife 2022](https://elifesciences.org/articles/77772))
 
 ## Installing the plugin
 
