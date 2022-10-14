@@ -101,7 +101,7 @@ endforeach()
 
 #copy the dlls when installing
 if (MSVC)
-	install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/libs/windows/bin/${CMAKE_LIBRARY_ARCHITECTURE}/ DESTINATION ${GUI_BIN_DIR}/shared CONFIGURATIONS ${CMAKE_CONFIGURATION_TYPES})
+	install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/libs/windows/bin/ DESTINATION ${GUI_BIN_DIR}/shared CONFIGURATIONS ${CMAKE_CONFIGURATION_TYPES})
 elseif(LINUX)
 	install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/libs/linux/bin/ DESTINATION ${GUI_BIN_DIR}/shared)
 elseif(APPLE)
@@ -110,11 +110,9 @@ endif()
 
 
 #additional libraries, if needed
-#find_library(TF_LIBRARIES NAMES libzmq-v142-mt-4_3_4 zmq zmq-v142-mt-4_3_4)
-find_library(LIBNAME_LIBRARIES NAMES libtensorflow tensorflow PATHS libs/macos/lib)
+find_library(TF_LIBRARIES NAMES libtensorflow tensorflow)
 find_path(TF_INCLUDE_DIRS tensorflow/c/c_api.h)
 
 target_include_directories(${PLUGIN_NAME} PUBLIC ${TF_INCLUDE_DIRS})
-#target_link_libraries(${PLUGIN_NAME} ${ZMQ_LIBRARIES})
-target_link_libraries(${PLUGIN_NAME} ${LIBNAME_LIBRARIES})
+target_link_libraries(${PLUGIN_NAME} ${TF_LIBRARIES})
 target_compile_definitions(${PLUGIN_NAME} PRIVATE TF $<$<PLATFORM_ID:Windows>:_SCL_SECURE_NO_WARNINGS>)
