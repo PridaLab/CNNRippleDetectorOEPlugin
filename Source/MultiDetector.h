@@ -34,7 +34,7 @@ class MultiDetectorSettings
 		int calibrationTime;
 		std::vector<std::vector<float>> calibrationBuffer;
 		int elapsedCalibrationPoints;
-		bool isCalibrated;
+		bool isCalibrating;
 
 		int drift;
 
@@ -42,7 +42,7 @@ class MultiDetectorSettings
 		int timeoutSamples;
 		int timeoutDownsampled;
 
-		int threshold;
+		float threshold;
 		int thresholdSign;
     
         /* Sample buffering */
@@ -138,7 +138,7 @@ private:
     void predict(uint64 streamId);
 
 	void createEventChannels();
-	void sendTTLEvent(uint64 bufferTs, int bufferNumSamples, int sample_index);
+	void sendTTLEvent(uint64 streamId, uint64 bufferTs, int bufferNumSamples, int sample_index);
 
 	EventChannel *ttlEventChannel;
 
@@ -159,16 +159,15 @@ private:
 
 	std::vector<float> predictBuffer;
 	std::vector<float> predictBufferSum;
-	unsigned int predictBufferSize;
-	int effectiveStride;
+	unsigned int predictBufferSize {16};
+	int effectiveStride {8};
 	float thrDrift;
 	bool skipPrediction;
 
 	float samplingRate;
-	int downsampledSamplingRate;
+	int downsampledSamplingRate {1250};
 	unsigned int downsampleFactor;
 	unsigned int loopIndex;
-	unsigned int sinceLast;
 
 	int timeout;
 	int pulseDuration;
