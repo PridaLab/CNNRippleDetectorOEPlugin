@@ -143,8 +143,9 @@ MultiDetector::~MultiDetector()
 {
 	tf_functions::delete_graph(graph);
 
-	//TODO: Causes crash on GUI close if no model is loaded in 
-	//tf_functions::delete_session(session);
+	if (modelLoaded)
+		tf_functions::delete_session(session);
+
 }
 
 void MultiDetector::updateSettings()
