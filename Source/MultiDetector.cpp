@@ -99,6 +99,7 @@ MultiDetector::MultiDetector() : GenericProcessor("CNN-ripple")
 	inputLayer = "conv1d_input";
 
 	modelLoaded = false;
+	isEnabled = modelLoaded;
 
 	/*
 	nextSampleEnable = 0;
@@ -225,6 +226,8 @@ void MultiDetector::updateSettings()
 		eventChannels.getLast()->addProcessor(processorInfo.get());
 		settings[stream->getStreamId()]->eventChannel = eventChannels.getLast();
 	}
+
+	isEnabled = modelLoaded;
 
 }
 
@@ -558,8 +561,9 @@ void MultiDetector::sendTTLEvent(uint64 streamId, uint64 sampleNumber, int buffe
 bool MultiDetector::setFile(String fullpath) {
 
 	File path(fullpath);
+	String pathString = path.getParentDirectory().getFullPathName();
 
-	if (tf_functions::load_session(path.getParentDirectory().getFullPathName().toStdString().c_str(), &graph, &session) == 0) {
+	if (tf_functions::load_session(pathString.toStdString().c_str(), &graph, &session) == 0) {
 		modelLoaded = true;
 
 		// serving_default_conv1d_input
@@ -591,6 +595,8 @@ bool MultiDetector::setFile(String fullpath) {
 
 	modelPath = path;
 	modelLoaded = true;
+
+	isEnabled = modelLoaded;
 
 	return true;
 }
