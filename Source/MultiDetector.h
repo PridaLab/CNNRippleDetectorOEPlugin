@@ -123,6 +123,12 @@ public:
 	void setChannel2(int channel);
 	void setThrDrift(float newThrDrift);
 
+	/** Save parameters*/
+    void saveCustomParametersToXml(XmlElement* xml);
+    
+    /** Load parameters*/
+    void loadCustomParametersFromXml(XmlElement* xml);
+
 private:
 
 	MultiDetectorEditor* ed;
@@ -142,7 +148,7 @@ private:
 
 	EventChannel *ttlEventChannel;
 
-	String modelPath;
+	File modelPath;
 	bool modelLoaded;
 
 	bool isCalibration;

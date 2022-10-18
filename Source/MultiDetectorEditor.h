@@ -49,6 +49,8 @@ public:
     //void comboBoxChanged(ComboBox* comboBoxThatHasChanged) override;
     void buttonClicked(Button* button);
 
+    void setFile(String file);
+
 private:
 
 	MultiDetector * rippleDetector;
@@ -92,9 +94,6 @@ private:
   bool updateIntLabel(Label * label, int min, int max, int defaultValue, int * out);
   bool updateFloatLabel(Label* label, float min, float max, float defaultValue, float* out);
   bool updateStringLabel(Label* label, String defaultValue, String& out);
-
-  void setFile(String file);
-
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MultiDetectorEditor);
 

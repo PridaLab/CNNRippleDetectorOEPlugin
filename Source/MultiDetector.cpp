@@ -98,7 +98,6 @@ MultiDetector::MultiDetector() : GenericProcessor("CNN-ripple")
 
 	inputLayer = "conv1d_input";
 
-	modelPath = "";
 	modelLoaded = false;
 
 	/*
@@ -558,9 +557,9 @@ void MultiDetector::sendTTLEvent(uint64 streamId, uint64 sampleNumber, int buffe
 
 bool MultiDetector::setFile(String fullpath) {
 
-	modelPath = fullpath;
+	File path(fullpath);
 
-	if (tf_functions::load_session(modelPath.toStdString().c_str(), &graph, &session) == 0) {
+	if (tf_functions::load_session(path.getParentDirectory().getFullPathName().toStdString().c_str(), &graph, &session) == 0) {
 		modelLoaded = true;
 
 		// serving_default_conv1d_input
@@ -588,8 +587,9 @@ bool MultiDetector::setFile(String fullpath) {
 	}
 
 
-	printf("%s\n", modelPath.toStdString().c_str());
+	//printf("%s\n", modelPath.toStdString().c_str());
 
+	modelPath = path;
 	modelLoaded = true;
 
 	return true;
@@ -747,4 +747,26 @@ double MultiDetector::getMean(uint64 streamId, int chan) {
 double MultiDetector::getStd(uint64 streamId, int chan) {
 	double s = sqrt(settings[streamId]->channelsNewStds[chan] / (settings[streamId]->elapsedCalibrationPoints - 1));
 	return (s > 0.0) ? s : 1.0;
+}
+
+void MultiDetector::saveCustomParametersToXml(XmlElement* xml)
+{
+    xml->setAttribute ("path", modelPath.getFullPathName().toStdString());
+}
+
+
+void MultiDetector::loadCustomParametersFromXml(XmlElement* xml)
+{
+
+    MultiDetectorEditor* editor = (MultiDetectorEditor*) getEditor();
+
+    String path = xml->getStringAttribute("path");
+
+    if (!File(path).exists()) {
+		LOGC("Saved model path does not exist");
+		return;
+	}
+
+	editor->setFile(path);
+
 }
