@@ -46,7 +46,7 @@ extern "C" EXPORT void getLibInfo(Plugin::LibraryInfo* info)
 	info->name = "PLUGINLIBRARYNAME";
 
 	//Version of the library, used only for information
-	info->libVersion = 1;
+	info->libVersion = "0.1.0";
 	info->numPlugins = NUM_PLUGINS;
 }
 
@@ -57,16 +57,16 @@ extern "C" EXPORT int getPluginInfo(int index, Plugin::PluginInfo* info)
 		//one case per plugin. This example is for a processor which connects directly to the signal chain
 	case 0:
 		//Type of plugin. See "Source/Processors/PluginManager/OpenEphysPlugin.h" for complete info about the different type structures
-		info->type = PluginType::PLUGIN_TYPE_PROCESSOR;
+		info->type = Plugin::PROCESSOR;
 
 		//Processor name
 		info->processor.name = "CNN-ripple"; //Processor name shown in the GUI
 
 		//Type of processor. Can be FilterProcessor, SourceProcessor, SinkProcessor or UtilityProcessor. Specifies where on the processor list will appear
-		info->processor.type = ProcessorType::FilterProcessor;
+		info->processor.type = Plugin::Processor::FILTER;
 
 		//Class factory pointer. Replace "MultiDetectorSpace::MultiDetector" with the namespace and class name.
-		info->processor.creator = &(Plugin::createProcessor<MultiDetectorSpace::MultiDetector>);
+		info->processor.creator = &(Plugin::createProcessor<MultiDetector>);
 		break;
 		/**
 		Examples for other plugin types

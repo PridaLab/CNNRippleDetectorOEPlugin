@@ -13,5 +13,7 @@
 
 
 # 3. Tensorflow libs (too big)
-**/libs/bin/*
+**/libs/*
 
+# 4. MacOS specific
+**/.DS_Store
