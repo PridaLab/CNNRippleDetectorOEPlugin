@@ -225,6 +225,13 @@ void MultiDetector::updateSettings()
 		eventChannels.add(new EventChannel(s));
 		eventChannels.getLast()->addProcessor(processorInfo.get());
 		settings[stream->getStreamId()]->eventChannel = eventChannels.getLast();
+		settings[stream->getStreamId()]->turnoffEvent1 = nullptr;
+
+
+		for (int i = 0; i < NUM_CHANNELS; i++) {
+			settings[stream->getStreamId()]->channelsMeans[i] = 0.;
+			settings[stream->getStreamId()]->predictBufferSum[i] = 0.;
+		}
 	}
 
 	isEnabled = modelLoaded;
@@ -251,13 +258,17 @@ void MultiDetector::parameterValueChanged(Parameter* param)
         if (array->size() == NUM_CHANNELS)
         {
             settings[streamId]->inputChannels.clear();
+
             for (int i = 0; i < NUM_CHANNELS; i++)
             {
                 int localIndex = int(array->getReference(i));
                 int globalIndex = getDataStream(param->getStreamId())->getContinuousChannels()[localIndex]->getGlobalIndex();
                 settings[streamId]->inputChannels.add(globalIndex);
             }
-        }
+
+            settings[streamId]->isCalibrating = true;
+			settings[streamId]->elapsedCalibrationPoints = 0;
+        }	
 	}
 	else if (paramName.equalsIgnoreCase("pulse_duration"))
 	{
@@ -274,14 +285,6 @@ void MultiDetector::parameterValueChanged(Parameter* param)
 	{
 		settings[streamId]->calibrationTime = param->getValue();
 		
-		settings[streamId]->calibrationBuffer.clear();
-		settings[streamId]->channelsMeans.clear();
-
-		for (int i = 0; i < NUM_CHANNELS; i++) {
-			settings[streamId]->calibrationBuffer.push_back(std::vector<float>());
-			settings[streamId]->channelsMeans.push_back(0.);
-		}
-
 		settings[streamId]->isCalibrating = true;
 		settings[streamId]->elapsedCalibrationPoints = 0;
 	}
@@ -372,17 +375,23 @@ void MultiDetector::process(AudioBuffer<float>& buffer)
             //LOGD("Stream: ", streamId, " Sample number: ", firstSampleNumberInBlock, " ts: ", ts, " data: ", *channelData[0]);
             
             // Send any TTL events stored from previous buffers
-            int turnoffOffset1 = settings[streamId]->turnoffEvent1 ? juce::jmax(0, int(turnoffEvent1->getSampleNumber() - firstSampleNumberInBlock)) : -1;
+            //TTLEventPtr event = (TTLEventPtr) settings[streamId]->turnoffEvent1;
+            int turnoffOffset1 = settings[streamId]->turnoffEvent1 ? juce::jmax(0, int(settings[streamId]->turnoffEvent1->getSampleNumber() - firstSampleNumberInBlock)) : -1;
+            
             if (turnoffOffset1 >= 0 && turnoffOffset1 < numSamplesInBlock) {
                 addEvent(settings[streamId]->turnoffEvent1, turnoffOffset1);
                 settings[streamId]->turnoffEvent1 = nullptr;
             }
             
-            for (int sample = 0; sample < numSamplesInBlock; sample++) {
+            for (int sample = 0; sample < numSamplesInBlock; sample++, settings[streamId]->globalSample++) {
                 
-                if (settings[streamId]->globalSample % settings[streamId]->downsampleFactor == 0) {
+                if ((settings[streamId]->globalSample % settings[streamId]->downsampleFactor) == 0) {
                     
+                    //std::cout << settings[streamId]->globalSample << " " <<  sample << " " << channelData[0][sample] << std::endl;
+
                     settings[streamId]->globalSample = 0;
+
+                    
                     
                     if (settings[streamId]->isCalibrating) {
                         
@@ -398,6 +407,8 @@ void MultiDetector::process(AudioBuffer<float>& buffer)
                             for (int chan = 0; chan < NUM_CHANNELS; chan++) {
                                 settings[streamId]->channelsMeans[chan] = getMean(streamId, chan);
                                 settings[streamId]->channelsStds[chan] = getStd(streamId, chan);
+
+                                //std::cout << "Chan " << chan << " mean " << settings[streamId]->channelsMeans[chan] << " std " << settings[streamId]->channelsStds[chan] << std::endl;
                             }
                         }
                         
@@ -485,7 +496,7 @@ void MultiDetector::process(AudioBuffer<float>& buffer)
 
                         if (settings[streamId]->forwardSamples == 1) {
                             settings[streamId]->nextSampleEnable += settings[streamId]->timeoutSamples - 1;
-                            //std::cout <<  "event" << " nextSample " << nextSampleEnable << std::endl;
+                            //std::cout <<  "event" << " nextSample " << settings[streamId]->nextSampleEnable << " timeout " << settings[streamId]->timeoutSamples << std::endl;
                             // If an event has been found, next value to read will be the first upcoming window after timeout
                             settings[streamId]->roundBufferReadIndex = (oldRoundBufferReadIndex + std::max(settings[streamId]->timeoutDownsampled, effectiveStride)) % MAX_ROUND_BUFFER_SIZE;
                         }
@@ -496,7 +507,7 @@ void MultiDetector::process(AudioBuffer<float>& buffer)
                     
                 }
 
-				settings[streamId]->globalSample++;
+				//settings[streamId]->globalSample++;
                 
             }
 			
@@ -540,21 +551,21 @@ void MultiDetector::sendTTLEvent(uint64 streamId, uint64 sampleNumber, int buffe
 		sampleNumber + sample_index + settings[streamId]->pulseDurationSamples,
 		0
 	);
-	addEvent(event, sample_index + settings[streamId]->pulseDurationSamples);
-
-	/*
+	//addEvent(event, sample_index + settings[streamId]->pulseDurationSamples);
+	
 	//std::cout << eventTsOn << "  " << eventTsOff << std::endl;
 
 	// Check if turn off event occurs during the actual buffer
-	if (sampleNumOff <= bufferNumSamples) {
+	if ((sample_index + settings[streamId]->pulseDurationSamples) <= bufferNumSamples) {
 		// If it does, simply add the turn off event
-		addEvent(ttlEventChannel, eventOff, sampleNumOff);
+		//addEvent(ttlEventChannel, eventOff, sampleNumOff);
+		addEvent(event, sample_index + settings[streamId]->pulseDurationSamples);
 	}
 	else {
 		// if not, saves it for the next buffer
-		turnoffEvent1 = eventOff;
+		settings[streamId]->turnoffEvent1 = event;
 	}
-	*/
+	
 }
 
 
@@ -739,6 +750,8 @@ void  MultiDetector::pushMeanStd(uint64 streamId, double x, int chan) {
     {
         settings[streamId]->channelsNewMeans[chan] = settings[streamId]->channelsOldMeans[chan] + (x - settings[streamId]->channelsOldMeans[chan]) / settings[streamId]->elapsedCalibrationPoints;
         settings[streamId]->channelsNewStds[chan] = settings[streamId]->channelsOldStds[chan] + (x - settings[streamId]->channelsOldMeans[chan]) * (x - settings[streamId]->channelsNewMeans[chan]);
+
+		//std::cout << "Pts " << settings[streamId]->elapsedCalibrationPoints << " TChan " << chan << " x " << x << " mean " << settings[streamId]->channelsNewMeans[chan] << " std " << settings[streamId]->channelsNewStds[chan] << std::endl;
 
 		// set up for next iteration
         settings[streamId]->channelsOldMeans[chan] = settings[streamId]->channelsNewMeans[chan];
